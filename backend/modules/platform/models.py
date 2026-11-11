@@ -95,6 +95,7 @@ class HostProfile(UUIDModel, TimestampedModel):
     headline = models.CharField(max_length=180, blank=True)
     biography = models.TextField(blank=True)
     image = models.CharField(max_length=500, default="/placeholder-host.svg")
+    photos = models.JSONField(default=list, blank=True)
     city = models.CharField(max_length=100, db_index=True)
     country_code = models.CharField(max_length=2, default=default_country_code)
     languages = models.JSONField(default=list, blank=True)
@@ -102,6 +103,7 @@ class HostProfile(UUIDModel, TimestampedModel):
     service_radius_km = models.PositiveSmallIntegerField(default=10)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT, db_index=True)
     instant_booking_enabled = models.BooleanField(default=False)
+    first_listing_approved = models.BooleanField(default=False)
     verified = models.BooleanField(default=False)
     average_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
     completed_bookings = models.PositiveIntegerField(default=0)
@@ -200,6 +202,39 @@ class ExperienceMedia(UUIDModel, TimestampedModel):
     media_type = models.CharField(max_length=8, choices=MediaType.choices, default=MediaType.IMAGE)
     alt_text = models.CharField(max_length=200)
     sort_order = models.PositiveSmallIntegerField(default=0)
+
+
+class ModerationQueueItem(UUIDModel, TimestampedModel):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+        CLEARED = "cleared", "Cleared"
+
+    class QueueType(models.TextChoices):
+        HOST_APPLICATION = "host_application", "Host application"
+        PROFILE_CONTENT = "profile_content", "Host profile content"
+        FIRST_LISTING = "first_listing", "First listing"
+        LISTING_CONTENT = "listing_content", "Listing content"
+
+    host = models.ForeignKey(HostProfile, on_delete=models.CASCADE, related_name="moderation_items")
+    experience = models.ForeignKey(
+        Experience, on_delete=models.CASCADE, null=True, blank=True, related_name="moderation_items"
+    )
+    queue_type = models.CharField(max_length=24, choices=QueueType.choices)
+    flagged_fields = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING, db_index=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="moderation_reviews",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "created_at"])]
 
 
 class AvailabilityRule(UUIDModel, TimestampedModel):

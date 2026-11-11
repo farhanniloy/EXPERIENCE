@@ -42,8 +42,11 @@ export function Nav() {
             <Search size={16} />
             Find plans
           </Link>
-          <Link href="/about" className="inline-flex items-center justify-center rounded-full bg-[#75404A] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#62373d]">
+          <Link href="/become-a-companion" className="inline-flex items-center justify-center rounded-full bg-[#75404A] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#62373d]">
             Become a host
+          </Link>
+          <Link href="/login" className="px-2 py-2.5 text-sm font-medium text-[#20201F] hover:text-[#75404A]">
+            Sign in
           </Link>
         </div>
 
@@ -70,8 +73,11 @@ export function Nav() {
                 {item.label}
               </Link>
             ))}
-            <Link href="/about" className="inline-flex w-full items-center justify-center rounded-full bg-[#75404A] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#62373d]" onClick={() => setMobileOpen(false)}>
+            <Link href="/become-a-companion" className="inline-flex w-full items-center justify-center rounded-full bg-[#75404A] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#62373d]" onClick={() => setMobileOpen(false)}>
               Become a host
+            </Link>
+            <Link href="/login" className="text-sm text-[#20201F]" onClick={() => setMobileOpen(false)}>
+              Sign in
             </Link>
           </nav>
         </div>

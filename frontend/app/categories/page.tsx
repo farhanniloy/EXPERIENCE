@@ -1,12 +1,12 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Footer } from "@/components/layout/footer";
 import { Nav } from "@/components/layout/nav";
 import { Card } from "@/components/ui/card";
+import { FallbackImage } from "@/components/ui/fallback-image";
 import { fetchPublicMarketplaceData, PublicMarketplaceData } from "@/lib/public-data";
 
 export default function CategoriesPage() {
@@ -51,8 +51,9 @@ export default function CategoriesPage() {
               {data.categories.map((category) => (
                 <Link key={category.slug} href={`/categories/${category.slug}`}>
                   <Card className="overflow-hidden p-5 transition hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(32,32,31,0.07)]">
-                    <Image
+                    <FallbackImage
                       src="/placeholder-experience.svg"
+                      fallback="/placeholder-experience.svg"
                       alt={category.name}
                       width={640}
                       height={420}

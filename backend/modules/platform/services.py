@@ -6,8 +6,18 @@ from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied as APIPermissionDenied
+from rest_framework.exceptions import ValidationError as APIValidationError
 
-from .models import Booking, BookingEvent, Experience, HostProfile, VerificationCheck
+from .models import (
+    Booking,
+    BookingEvent,
+    Experience,
+    HostProfile,
+    ModerationQueueItem,
+    VerificationCheck,
+)
+from .moderation import flag_experience, queue_listing_review
 
 
 ALLOWED_BOOKING_TRANSITIONS = {
@@ -20,6 +30,77 @@ ALLOWED_BOOKING_TRANSITIONS = {
     Booking.Status.CONFIRMED: {Booking.Status.CANCELLED, Booking.Status.IN_PROGRESS},
     Booking.Status.IN_PROGRESS: {Booking.Status.COMPLETED, Booking.Status.DISPUTED},
 }
+
+
+def submit_experience_for_publication(host, experience, submit_for_review):
+    flagged = flag_experience(experience)
+    if host.status != HostProfile.Status.APPROVED:
+        if submit_for_review:
+            raise APIPermissionDenied(
+                "Host approval is required before submitting an experience for publishing."
+            )
+        if flagged:
+            queue_listing_review(host, experience, False, flagged)
+        else:
+            queue_listing_review(host, experience, False, {})
+        experience.status = Experience.Status.DRAFT
+        return
+    is_first_listing = submit_for_review and not host.first_listing_approved
+    if flagged or is_first_listing:
+        experience.status = Experience.Status.PENDING_REVIEW
+        queue_listing_review(host, experience, is_first_listing, flagged)
+    elif submit_for_review:
+        queue_listing_review(host, experience, False, {})
+        experience.status = Experience.Status.PUBLISHED
+    elif experience.status == Experience.Status.PENDING_REVIEW and not host.first_listing_approved:
+        experience.status = Experience.Status.PENDING_REVIEW
+        queue_listing_review(host, experience, True, {})
+    elif experience.status == Experience.Status.PENDING_REVIEW:
+        queue_listing_review(host, experience, False, {})
+        experience.status = Experience.Status.DRAFT
+
+
+@transaction.atomic
+def deactivate_experience(experience):
+    experience.status = Experience.Status.INACTIVE
+    experience.save(update_fields=["status", "updated_at"])
+    ModerationQueueItem.objects.filter(
+        experience=experience, status=ModerationQueueItem.Status.PENDING
+    ).update(status=ModerationQueueItem.Status.CLEARED, updated_at=timezone.now())
+
+
+def apply_moderation_decision(item, action, reviewer):
+    if action not in {"approve", "reject"}:
+        raise APIValidationError({"action": "Choose approve or reject."})
+    if item.status != ModerationQueueItem.Status.PENDING:
+        raise APIValidationError("This moderation item has already been reviewed.")
+    if action == "approve":
+        if item.experience_id:
+            if item.host.status != HostProfile.Status.APPROVED:
+                raise APIValidationError("Approve the host application before approving its listing.")
+            item.experience.status = Experience.Status.PUBLISHED
+            item.experience.save(update_fields=["status", "updated_at"])
+            item.host.first_listing_approved = True
+            item.host.save(update_fields=["first_listing_approved", "updated_at"])
+        elif item.queue_type in {
+            ModerationQueueItem.QueueType.HOST_APPLICATION,
+            ModerationQueueItem.QueueType.PROFILE_CONTENT,
+        }:
+            item.host.status = HostProfile.Status.APPROVED
+            item.host.save(update_fields=["status", "updated_at"])
+        item.status = ModerationQueueItem.Status.APPROVED
+    else:
+        if item.experience_id:
+            item.experience.status = Experience.Status.INACTIVE
+            item.experience.save(update_fields=["status", "updated_at"])
+        else:
+            item.host.status = HostProfile.Status.REJECTED
+            item.host.save(update_fields=["status", "updated_at"])
+        item.status = ModerationQueueItem.Status.REJECTED
+    item.reviewed_by = reviewer
+    item.reviewed_at = timezone.now()
+    item.save(update_fields=["status", "reviewed_by", "reviewed_at", "updated_at"])
+    return item
 
 
 @transaction.atomic

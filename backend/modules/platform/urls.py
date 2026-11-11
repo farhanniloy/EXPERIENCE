@@ -16,6 +16,17 @@ from .views import (
     RegisterView,
     UserMeView,
 )
+from .host_views import (
+    CompanionApplicationView,
+    CompanionMeView,
+    CustomerDashboardView,
+    DevelopmentAgeVerificationView,
+    HostDashboardView,
+    ManagedExperienceDetailView,
+    ManagedExperienceListView,
+    ModerationQueueView,
+    ModerationReviewView,
+)
 
 urlpatterns = [
     path("auth/csrf", CsrfTokenView.as_view(), name="auth-csrf"),
@@ -25,6 +36,19 @@ urlpatterns = [
     path("auth/password/reset", PasswordResetRequestView.as_view(), name="auth-password-reset"),
     path("auth/password/confirm", PasswordResetConfirmView.as_view(), name="auth-password-confirm"),
     path("users/me", UserMeView.as_view(), name="users-me"),
+    path("companions/applications", CompanionApplicationView.as_view(), name="companion-application"),
+    path("companions/me", CompanionMeView.as_view(), name="companion-me"),
+    path("companions/me/verification", DevelopmentAgeVerificationView.as_view(), name="companion-verification"),
+    path("experiences/manage", ManagedExperienceListView.as_view(), name="experience-manage-list"),
+    path(
+        "experiences/manage/<uuid:experience_id>",
+        ManagedExperienceDetailView.as_view(),
+        name="experience-manage-detail",
+    ),
+    path("dashboard", CustomerDashboardView.as_view(), name="customer-dashboard"),
+    path("dashboard/companion", HostDashboardView.as_view(), name="host-dashboard"),
+    path("admin/moderation", ModerationQueueView.as_view(), name="moderation-queue"),
+    path("admin/moderation/<uuid:item_id>", ModerationReviewView.as_view(), name="moderation-review"),
     path("categories", CategoryListView.as_view(), name="category-list"),
     path("experiences", ExperienceListView.as_view(), name="experience-list"),
     path("experiences/<slug:slug>", ExperienceDetailView.as_view(), name="experience-detail"),

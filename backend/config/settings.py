@@ -9,6 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-insecure-dev-secret-key")
 DEBUG = os.environ.get("DJANGO_DEBUG", "True").lower() in {"1", "true", "yes", "on"}
+APP_ENV = os.environ.get("APP_ENV", "development").lower()
 
 ALLOWED_HOSTS = ["*", "localhost", "127.0.0.1", "0.0.0.0", "backend", "frontend"]
 
@@ -110,6 +111,9 @@ REST_FRAMEWORK = {
         "register": "10/hour",
         "login": "10/hour",
         "password_reset": "5/hour",
+        "host_onboarding": "10/hour",
+        "experience_write": "30/hour",
+        "moderation": "120/hour",
         "default": "1000/day",
     },
     "EXCEPTION_HANDLER": "modules.platform.exceptions.api_exception_handler",

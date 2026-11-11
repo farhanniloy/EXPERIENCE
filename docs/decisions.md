@@ -31,3 +31,17 @@ settings in `backend/config/product.py` and frontend public environment-backed
 values in `frontend/lib/site-config.ts`. Generated OpenAPI is kept in
 `docs/api/openapi.yaml`; regenerate it with
 `cd backend && python manage.py spectacular --file ../docs/api/openapi.yaml --validate`.
+
+## 6. Host onboarding and moderation
+Host applications and listings are persisted in the platform API. The age
+confirmation endpoint is a clearly labeled local development simulation and
+is disabled when DEBUG is off or APP_ENV is production; it is not identity
+verification. Profile and experience photos currently use validated HTTPS
+URLs or local asset paths. Host applications and each host's first listing
+require staff review. Prohibited solicitation terms and phone/social contact
+details place profile or listing content in the staff moderation queue. Public
+catalog pages merge approved database records with the existing sample
+fixtures until fixture-backed sample content is retired.
+Prices are stored and sent by the API in integer currency minor units. Host
+forms accept normal currency values, and formatting and budget filters use the
+currency's configured minor-unit scale.

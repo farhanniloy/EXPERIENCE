@@ -4,6 +4,55 @@ info:
   version: 1.0.0
   description: Along marketplace API, version 1.
 paths:
+  /api/v1/admin/moderation:
+    get:
+      operationId: v1_admin_moderation_list
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModerationItemOutput'
+          description: ''
+  /api/v1/admin/moderation/{item_id}:
+    post:
+      operationId: v1_admin_moderation_create
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModerationAction'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ModerationAction'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ModerationAction'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModerationActionOutput'
+          description: ''
   /api/v1/auth/csrf:
     get:
       operationId: v1_auth_csrf_retrieve
@@ -243,6 +292,123 @@ paths:
               schema:
                 $ref: '#/components/schemas/PublicHost'
           description: ''
+  /api/v1/companions/applications:
+    post:
+      operationId: v1_companions_applications_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostApplicationData'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/HostApplicationData'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/HostApplicationData'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostProfileOutput'
+          description: ''
+  /api/v1/companions/me:
+    get:
+      operationId: v1_companions_me_retrieve
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostProfileOutput'
+          description: ''
+    patch:
+      operationId: v1_companions_me_partial_update
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedHostApplicationData'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedHostApplicationData'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedHostApplicationData'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostProfileOutput'
+          description: ''
+  /api/v1/companions/me/verification:
+    post:
+      operationId: v1_companions_me_verification_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgeConfirmation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AgeConfirmation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AgeConfirmation'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationOutput'
+          description: ''
+  /api/v1/dashboard:
+    get:
+      operationId: v1_dashboard_retrieve
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerDashboardOutput'
+          description: ''
+  /api/v1/dashboard/companion:
+    get:
+      operationId: v1_dashboard_companion_retrieve
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostDashboardOutput'
+          description: ''
   /api/v1/experiences:
     get:
       operationId: v1_experiences_list
@@ -348,6 +514,95 @@ paths:
               schema:
                 $ref: '#/components/schemas/PublicExperience'
           description: ''
+  /api/v1/experiences/manage:
+    get:
+      operationId: v1_experiences_manage_list
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ManagedExperienceOutput'
+          description: ''
+    post:
+      operationId: v1_experiences_manage_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExperienceWrite'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExperienceWrite'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExperienceWrite'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagedExperienceOutput'
+          description: ''
+  /api/v1/experiences/manage/{experience_id}:
+    patch:
+      operationId: v1_experiences_manage_partial_update
+      parameters:
+      - in: path
+        name: experience_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedExperienceWrite'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedExperienceWrite'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedExperienceWrite'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagedExperienceOutput'
+          description: ''
+    delete:
+      operationId: v1_experiences_manage_destroy
+      parameters:
+      - in: path
+        name: experience_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/users/me:
     get:
       operationId: v1_users_me_retrieve
@@ -412,6 +667,52 @@ paths:
           description: ''
 components:
   schemas:
+    ActionEnum:
+      enum:
+      - approve
+      - reject
+      type: string
+      description: |-
+        * `approve` - approve
+        * `reject` - reject
+    AgeConfirmation:
+      type: object
+      properties:
+        confirmed_18:
+          type: boolean
+      required:
+      - confirmed_18
+    BookingSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        start_at:
+          type: string
+          format: date-time
+        end_at:
+          type: string
+          format: date-time
+        experience_title:
+          type: string
+        other_party:
+          type: string
+        total_minor:
+          type: integer
+        currency:
+          type: string
+      required:
+      - currency
+      - end_at
+      - experience_title
+      - id
+      - other_party
+      - start_at
+      - status
+      - total_minor
     CsrfToken:
       type: object
       properties:
@@ -419,6 +720,162 @@ components:
           type: string
       required:
       - csrfToken
+    CustomerDashboardOutput:
+      type: object
+      properties:
+        display_name:
+          type: string
+        bookings:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingSummary'
+      required:
+      - bookings
+      - display_name
+    ExperienceWrite:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 180
+        description:
+          type: string
+        summary:
+          type: string
+          maxLength: 300
+        duration_minutes:
+          type: integer
+          maximum: 1440
+          minimum: 15
+        min_duration_minutes:
+          type: integer
+          maximum: 1440
+          minimum: 15
+          nullable: true
+        max_duration_minutes:
+          type: integer
+          maximum: 1440
+          minimum: 15
+          nullable: true
+        pricing_type:
+          $ref: '#/components/schemas/PricingTypeEnum'
+        price_minor:
+          type: integer
+          minimum: 0
+        instant_booking_enabled:
+          type: boolean
+        category_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 10
+        image:
+          type: string
+          maxLength: 500
+        submit_for_review:
+          type: boolean
+          default: false
+      required:
+      - description
+      - duration_minutes
+      - price_minor
+      - title
+    HostApplicationData:
+      type: object
+      properties:
+        display_name:
+          type: string
+          maxLength: 120
+        headline:
+          type: string
+          maxLength: 180
+        biography:
+          type: string
+        city:
+          type: string
+          maxLength: 100
+        languages:
+          type: array
+          items:
+            type: string
+            maxLength: 40
+        interests:
+          type: array
+          items:
+            type: string
+            maxLength: 60
+        photos:
+          type: array
+          items:
+            type: string
+            maxLength: 500
+          maxItems: 6
+    HostDashboardOutput:
+      type: object
+      properties:
+        host:
+          $ref: '#/components/schemas/HostProfileOutput'
+        experiences:
+          type: array
+          items:
+            $ref: '#/components/schemas/ManagedExperienceOutput'
+        bookings:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingSummary'
+      required:
+      - bookings
+      - experiences
+      - host
+    HostProfileOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        headline:
+          type: string
+        biography:
+          type: string
+        city:
+          type: string
+        languages:
+          type: array
+          items:
+            type: string
+        interests:
+          type: array
+          items:
+            type: string
+        photos:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+        adult_confirmed:
+          type: boolean
+        verification_provider:
+          type: string
+          nullable: true
+        verified:
+          type: boolean
+      required:
+      - adult_confirmed
+      - biography
+      - city
+      - display_name
+      - headline
+      - id
+      - interests
+      - languages
+      - photos
+      - status
+      - verification_provider
+      - verified
     Login:
       type: object
       properties:
@@ -431,6 +888,131 @@ components:
       required:
       - email
       - password
+    ManagedExperienceOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+          pattern: ^[-a-zA-Z0-9_]+$
+        title:
+          type: string
+        summary:
+          type: string
+        description:
+          type: string
+        duration_minutes:
+          type: integer
+        min_duration_minutes:
+          type: integer
+          nullable: true
+        max_duration_minutes:
+          type: integer
+          nullable: true
+        pricing_type:
+          type: string
+        price_minor:
+          type: integer
+        currency:
+          type: string
+        instant_booking_enabled:
+          type: boolean
+        status:
+          type: string
+        category_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        image:
+          type: string
+      required:
+      - category_ids
+      - currency
+      - description
+      - duration_minutes
+      - id
+      - image
+      - instant_booking_enabled
+      - max_duration_minutes
+      - min_duration_minutes
+      - price_minor
+      - pricing_type
+      - slug
+      - status
+      - summary
+      - title
+    ModerationAction:
+      type: object
+      properties:
+        action:
+          $ref: '#/components/schemas/ActionEnum'
+      required:
+      - action
+    ModerationActionOutput:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+      - status
+    ModerationExperienceOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+      required:
+      - id
+      - status
+      - title
+    ModerationItemOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        queue_type:
+          type: string
+        flagged_fields:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        content:
+          type: object
+          additionalProperties:
+            type: string
+        host:
+          type: string
+        host_slug:
+          type: string
+        host_status:
+          type: string
+        experience:
+          allOf:
+          - $ref: '#/components/schemas/ModerationExperienceOutput'
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - content
+      - created_at
+      - experience
+      - flagged_fields
+      - host
+      - host_slug
+      - host_status
+      - id
+      - queue_type
     PaginatedPublicCollectionList:
       type: object
       required:
@@ -511,6 +1093,80 @@ components:
           format: email
       required:
       - email
+    PatchedExperienceWrite:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 180
+        description:
+          type: string
+        summary:
+          type: string
+          maxLength: 300
+        duration_minutes:
+          type: integer
+          maximum: 1440
+          minimum: 15
+        min_duration_minutes:
+          type: integer
+          maximum: 1440
+          minimum: 15
+          nullable: true
+        max_duration_minutes:
+          type: integer
+          maximum: 1440
+          minimum: 15
+          nullable: true
+        pricing_type:
+          $ref: '#/components/schemas/PricingTypeEnum'
+        price_minor:
+          type: integer
+          minimum: 0
+        instant_booking_enabled:
+          type: boolean
+        category_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 10
+        image:
+          type: string
+          maxLength: 500
+        submit_for_review:
+          type: boolean
+          default: false
+    PatchedHostApplicationData:
+      type: object
+      properties:
+        display_name:
+          type: string
+          maxLength: 120
+        headline:
+          type: string
+          maxLength: 180
+        biography:
+          type: string
+        city:
+          type: string
+          maxLength: 100
+        languages:
+          type: array
+          items:
+            type: string
+            maxLength: 40
+        interests:
+          type: array
+          items:
+            type: string
+            maxLength: 60
+        photos:
+          type: array
+          items:
+            type: string
+            maxLength: 500
+          maxItems: 6
     PatchedUserMe:
       type: object
       properties:
@@ -537,6 +1193,14 @@ components:
         is_email_verified:
           type: boolean
           readOnly: true
+    PricingTypeEnum:
+      enum:
+      - fixed
+      - hourly
+      type: string
+      description: |-
+        * `fixed` - Fixed
+        * `hourly` - Hourly
     PublicCategory:
       type: object
       properties:
@@ -712,6 +1376,7 @@ components:
         image:
           type: string
           maxLength: 500
+        photos: {}
       required:
       - city
       - id
@@ -765,6 +1430,19 @@ components:
       - email
       - id
       - is_email_verified
+    VerificationOutput:
+      type: object
+      properties:
+        status:
+          type: string
+        provider:
+          type: string
+        label:
+          type: string
+      required:
+      - label
+      - provider
+      - status
   securitySchemes:
     cookieAuth:
       type: apiKey

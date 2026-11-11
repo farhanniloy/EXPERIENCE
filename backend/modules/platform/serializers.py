@@ -80,7 +80,7 @@ class PublicHostSerializer(serializers.ModelSerializer):
         model = HostProfile
         fields = [
             "id", "slug", "name", "city", "headline", "biography", "languages",
-            "interests", "verified", "rating", "completed_bookings", "image",
+            "interests", "verified", "rating", "completed_bookings", "image", "photos",
         ]
 
 class PublicCategorySerializer(serializers.ModelSerializer):

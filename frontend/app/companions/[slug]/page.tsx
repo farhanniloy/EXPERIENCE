@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -8,6 +7,7 @@ import { Suspense, useEffect, useState } from "react";
 import { Footer } from "@/components/layout/footer";
 import { Nav } from "@/components/layout/nav";
 import { Card } from "@/components/ui/card";
+import { FallbackImage } from "@/components/ui/fallback-image";
 import { fetchPublicMarketplaceData, PublicMarketplaceData } from "@/lib/public-data";
 
 export default function CompanionDetailPage() {
@@ -62,7 +62,11 @@ function CompanionDetailContent() {
     );
   }
 
-  const companionExperiences = data.experiences.filter((experience) => experience.host_name === companion.name);
+  const companionExperiences = data.experiences.filter((experience) =>
+    experience.host_slug
+      ? experience.host_slug === companion.slug
+      : experience.host_name === companion.name,
+  );
 
   return (
     <>
@@ -71,7 +75,7 @@ function CompanionDetailContent() {
         <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
           <Card className="overflow-hidden p-6">
             <div className="grid gap-6 md:grid-cols-[240px_1fr] md:items-center">
-              <Image src={companion.image} alt={companion.name} width={320} height={320} className="h-56 w-full rounded-2xl object-cover" />
+              <FallbackImage src={companion.image} fallback="/placeholder-host.svg" alt={companion.name} width={320} height={320} className="h-56 w-full rounded-2xl object-cover" />
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-4xl font-semibold tracking-tight">{companion.name}</h1>
@@ -110,7 +114,7 @@ function CompanionDetailContent() {
             {companionExperiences.map((experience) => (
               <Link key={experience.id} href={`/experiences/${experience.slug}`}>
                 <Card className="overflow-hidden transition hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(32,32,31,0.07)]">
-                  <Image src={experience.image} alt={experience.title} width={640} height={420} className="h-48 w-full object-cover" />
+                  <FallbackImage src={experience.image} fallback="/placeholder-experience.svg" alt={experience.title} width={640} height={420} className="h-48 w-full object-cover" />
                   <div className="p-5">
                     <div className="flex items-center justify-between text-sm text-[#77736D]">
                       <span>{experience.city}</span>

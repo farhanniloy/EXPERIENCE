@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, connections
-from django.test import TransactionTestCase
+from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -18,6 +18,7 @@ from .models import (
     Category,
     Experience,
     HostProfile,
+    ModerationQueueItem,
     User,
     VerificationCheck,
 )
@@ -210,6 +211,212 @@ class PlatformAPITests(APITestCase):
     def test_openapi_schema_is_available(self):
         response = self.client.get("/api/schema/")
         self.assertEqual(response.status_code, 200)
+
+    def test_backend_root_redirects_to_api_docs(self):
+        response = self.client.get("/")
+        self.assertRedirects(response, "/api/docs/", fetch_redirect_response=False)
+
+    @override_settings(DEBUG=True)
+    def test_host_application_requires_development_adult_confirmation(self):
+        self.client.force_authenticate(self.customer.auth_user)
+        profile = {
+            "display_name": "Casey",
+            "headline": "A thoughtful city explorer",
+            "biography": "I enjoy public museums and cafés.",
+            "city": "Dhaka",
+            "languages": ["English"],
+            "interests": ["Museums"],
+            "photos": ["/placeholder-host.svg"],
+        }
+        saved = self.client.patch("/api/v1/companions/me", profile, format="json")
+        self.assertEqual(saved.status_code, 200)
+        denied = self.client.post(
+            "/api/v1/companions/applications", profile, format="json"
+        )
+        self.assertEqual(denied.status_code, 400)
+        verification = self.client.post(
+            "/api/v1/companions/me/verification",
+            {"confirmed_18": True},
+            format="json",
+        )
+        self.assertEqual(verification.status_code, 201, verification.data)
+        self.assertEqual(verification.data["provider"], "development_mock")
+        submitted = self.client.post(
+            "/api/v1/companions/applications", profile, format="json"
+        )
+        self.assertEqual(submitted.status_code, 202)
+        self.assertEqual(submitted.data["status"], HostProfile.Status.SUBMITTED)
+        self.assertTrue(
+            ModerationQueueItem.objects.filter(
+                host__user=self.customer.auth_user,
+                queue_type=ModerationQueueItem.QueueType.HOST_APPLICATION,
+                status=ModerationQueueItem.Status.PENDING,
+            ).exists()
+        )
+
+    def test_host_profile_and_experience_reads_are_not_write_throttled(self):
+        self.client.force_authenticate(self.host_user.auth_user)
+        for endpoint, request_count in (
+            ("/api/v1/companions/me", 11),
+            ("/api/v1/experiences/manage", 31),
+        ):
+            for _ in range(request_count):
+                response = self.client.get(endpoint)
+                self.assertEqual(response.status_code, 200, response.data)
+
+    @override_settings(DEBUG=True, APP_ENV="production")
+    def test_development_verification_adapter_is_disabled_in_production(self):
+        self.client.force_authenticate(self.customer.auth_user)
+        response = self.client.post(
+            "/api/v1/companions/me/verification",
+            {"confirmed_18": True},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_host_cannot_publish_before_approval_and_owns_managed_experiences(self):
+        self.client.force_authenticate(self.customer.auth_user)
+        payload = {
+            "title": "Public museum afternoon",
+            "description": "Visit a public museum.",
+            "duration_minutes": 120,
+            "price_minor": 1800,
+            "submit_for_review": True,
+        }
+        rejected = self.client.post("/api/v1/experiences/manage", payload, format="json")
+        self.assertEqual(rejected.status_code, 403)
+        payload["submit_for_review"] = False
+        draft = self.client.post("/api/v1/experiences/manage", payload, format="json")
+        self.assertEqual(draft.status_code, 201)
+        self.assertEqual(draft.data["status"], Experience.Status.DRAFT)
+
+        other = User.objects.create_user(
+            "other-customer@example.test",
+            "Along-Other-Password-391!",
+            display_name="Other Customer",
+        )
+        self.client.force_authenticate(other.auth_user)
+        forbidden = self.client.patch(
+            f"/api/v1/experiences/manage/{draft.data['id']}",
+            {"title": "Not owned"},
+            format="json",
+        )
+        self.assertEqual(forbidden.status_code, 404)
+
+    def test_first_listing_requires_moderation_and_admin_approval(self):
+        host_account = User.objects.create_user(
+            "new-host@example.test",
+            "Along-New-Host-Password-391!",
+            display_name="New Host",
+        )
+        host = HostProfile.objects.create(
+            user=host_account.auth_user,
+            slug="new-host",
+            city="Dhaka",
+            status=HostProfile.Status.APPROVED,
+        )
+        self.client.force_authenticate(host_account.auth_user)
+        created = self.client.post(
+            "/api/v1/experiences/manage",
+            {
+                "title": "Public art gallery visit",
+                "description": "Explore a public gallery together.",
+                "duration_minutes": 90,
+                "price_minor": 1500,
+                "submit_for_review": True,
+            },
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.data["status"], Experience.Status.PENDING_REVIEW)
+        item = ModerationQueueItem.objects.get(experience_id=created.data["id"])
+        self.assertEqual(item.queue_type, ModerationQueueItem.QueueType.FIRST_LISTING)
+        self.client.force_authenticate(self.customer.auth_user)
+        self.assertEqual(self.client.get("/api/v1/admin/moderation").status_code, 403)
+
+        staff_user = get_user_model().objects.create_user(
+            username="moderator",
+            email="moderator@example.test",
+            password="Along-Moderator-Password-391!",
+            is_staff=True,
+        )
+        self.client.force_authenticate(staff_user)
+        queue = self.client.get("/api/v1/admin/moderation")
+        self.assertEqual(queue.status_code, 200)
+        reviewed = self.client.post(
+            f"/api/v1/admin/moderation/{item.pk}",
+            {"action": "approve"},
+            format="json",
+        )
+        self.assertEqual(reviewed.status_code, 200)
+        created_experience = Experience.objects.get(pk=created.data["id"])
+        self.assertEqual(created_experience.status, Experience.Status.PUBLISHED)
+        public_results = self.client.get(
+            "/api/v1/experiences", {"q": "Public art gallery visit"}
+        )
+        self.assertIn(
+            created_experience.slug,
+            {item["slug"] for item in public_results.data["results"]},
+        )
+        host.refresh_from_db()
+        self.assertEqual(host.status, HostProfile.Status.APPROVED)
+
+    def test_flagged_listing_is_held_in_moderation_queue(self):
+        self.client.force_authenticate(self.host_user.auth_user)
+        response = self.client.post(
+            "/api/v1/experiences/manage",
+            {
+                "title": "Museum visit",
+                "description": "Message me on WhatsApp at 01712345678.",
+                "duration_minutes": 90,
+                "price_minor": 1500,
+                "submit_for_review": True,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["status"], Experience.Status.PENDING_REVIEW)
+        item = ModerationQueueItem.objects.get(experience_id=response.data["id"])
+        self.assertIn("description", item.flagged_fields)
+        self.assertIn("WhatsApp", item.experience.description)
+        staff_user = get_user_model().objects.create_user(
+            username="content-moderator",
+            email="content-moderator@example.test",
+            password="Along-Content-Moderator-391!",
+            is_staff=True,
+        )
+        self.client.force_authenticate(staff_user)
+        queue = self.client.get("/api/v1/admin/moderation")
+        queued_item = next(entry for entry in queue.data if entry["id"] == str(item.pk))
+        self.assertIn("WhatsApp", queued_item["content"]["description"])
+
+    def test_flagged_profile_content_is_hidden_and_review_queued(self):
+        self.client.force_authenticate(self.host_user.auth_user)
+        response = self.client.patch(
+            "/api/v1/companions/me",
+            {"biography": "Contact me on WhatsApp at 01712345678."},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], HostProfile.Status.UNDER_REVIEW)
+        item = ModerationQueueItem.objects.get(
+            host=self.host,
+            queue_type=ModerationQueueItem.QueueType.PROFILE_CONTENT,
+            status=ModerationQueueItem.Status.PENDING,
+        )
+        self.assertIn("biography", item.flagged_fields)
+        self.assertEqual(
+            self.client.get("/api/v1/companions/host-sample").status_code, 404
+        )
+
+    def test_customer_and_host_dashboards_return_real_account_data(self):
+        self.client.force_authenticate(self.customer.auth_user)
+        customer_dashboard = self.client.get("/api/v1/dashboard")
+        self.assertEqual(customer_dashboard.status_code, 200)
+        self.assertEqual(customer_dashboard.data["display_name"], "Casey")
+        host_dashboard = self.client.get("/api/v1/dashboard/companion")
+        self.assertEqual(host_dashboard.status_code, 200)
+        self.assertEqual(host_dashboard.data["host"]["status"], HostProfile.Status.DRAFT)
 
     def test_booking_state_machine_records_transition_events(self):
         booking = self._create_booking()

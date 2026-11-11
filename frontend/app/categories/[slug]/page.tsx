@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -8,6 +7,7 @@ import { Suspense, useEffect, useState } from "react";
 import { Footer } from "@/components/layout/footer";
 import { Nav } from "@/components/layout/nav";
 import { Card } from "@/components/ui/card";
+import { FallbackImage } from "@/components/ui/fallback-image";
 import { fetchPublicMarketplaceData, formatPrice, PublicMarketplaceData } from "@/lib/public-data";
 
 export default function CategoryDetailPage() {
@@ -75,8 +75,9 @@ function CategoryDetailContent() {
               filteredExperiences.map((experience) => (
                 <Link key={experience.id} href={`/experiences/${experience.slug}`}>
                   <Card className="overflow-hidden transition hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(32,32,31,0.07)]">
-                    <Image
+                    <FallbackImage
                       src={experience.image}
+                      fallback="/placeholder-experience.svg"
                       alt={experience.title}
                       width={640}
                       height={420}

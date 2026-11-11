@@ -16,10 +16,17 @@ A monorepo foundation for the Along marketplace MVP.
 2. Start the stack:
    docker compose up --build
 3. Visit http://localhost:3000 to view the frontend.
-4. API health check: http://localhost:8000/api/v1/health/
-5. Seed the database with sample marketplace records:
+4. Visit http://localhost:8000 to open the API reference.
+5. API health check: http://localhost:8000/api/v1/health/
+6. Seed the database with sample marketplace records:
    docker compose exec backend python manage.py seed_sample_data
-6. API reference: http://localhost:8000/api/docs/
+7. API reference: http://localhost:8000/api/docs/
+
+Accounts can be created at `/signup`, hosts can apply at
+`/become-a-companion`, and authenticated booking summaries are available at
+`/dashboard` and `/dashboard/companion`. Staff moderation is available at
+`/admin/moderation`. The age-confirmation simulation is development-only and
+does not verify identity.
 
 ## Included defaults
 - PostgreSQL with the btree_gist extension enabled via migration

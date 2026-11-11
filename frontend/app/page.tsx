@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, CalendarCheck2, MapPin, ShieldCheck, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -9,6 +8,7 @@ import { Footer } from "@/components/layout/footer";
 import { Nav } from "@/components/layout/nav";
 import { SearchWidget } from "@/components/search/search-widget";
 import { Card } from "@/components/ui/card";
+import { FallbackImage } from "@/components/ui/fallback-image";
 import { FadeIn } from "@/components/ui/motion";
 import { fetchPublicMarketplaceData, formatPrice, PublicMarketplaceData } from "@/lib/public-data";
 
@@ -89,8 +89,9 @@ export default function HomePage() {
 
             <FadeIn className="relative">
               <div className="overflow-hidden rounded-[32px] border border-[#E8E4DC] bg-white p-4 shadow-[0_24px_60px_rgba(32,32,31,0.08)]">
-                <Image
+                <FallbackImage
                   src="/placeholder-experience.svg"
+                  fallback="/placeholder-experience.svg"
                   alt="Illustrated social experience in Dhaka"
                   width={760}
                   height={720}
@@ -158,8 +159,9 @@ export default function HomePage() {
           <div className="grid gap-5 lg:grid-cols-3">
             {data.collections.map((collection) => (
               <Card key={collection.slug} className="overflow-hidden">
-                <Image
+                <FallbackImage
                   src={collection.image}
+                  fallback="/placeholder-experience.svg"
                   alt={collection.title}
                   width={640}
                   height={420}
@@ -193,8 +195,9 @@ export default function HomePage() {
             {featuredExperiences.map((experience) => (
               <Link key={experience.id} href={`/experiences/${experience.slug}`}>
                 <Card className="overflow-hidden transition hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(32,32,31,0.07)]">
-                  <Image
+                  <FallbackImage
                     src={experience.image}
+                    fallback="/placeholder-experience.svg"
                     alt={experience.title}
                     width={640}
                     height={420}
@@ -235,8 +238,9 @@ export default function HomePage() {
             {featuredCompanions.map((companion) => (
               <Link key={companion.id} href={`/companions/${companion.slug}`}>
                 <Card className="p-5 transition hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(32,32,31,0.07)]">
-                  <Image
+                  <FallbackImage
                     src={companion.image}
+                    fallback="/placeholder-host.svg"
                     alt={companion.name}
                     width={420}
                     height={420}

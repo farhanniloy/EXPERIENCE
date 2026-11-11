@@ -2,10 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { formatPrice, toMinorUnits } from "@/lib/currency";
 import { Category } from "@/lib/public-data";
 
 const cityOptions = ["Dhaka", "Chattogram", "Sylhet"];
@@ -20,10 +21,7 @@ export function SearchWidget({ categories }: { categories: Category[] }) {
     q: "",
   });
 
-  const budgetOptions = useMemo(
-    () => ["1500", "2500", "4000", "6000"],
-    [],
-  );
+  const budgetOptions = [1500, 2500, 4000, 6000];
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -88,8 +86,8 @@ export function SearchWidget({ categories }: { categories: Category[] }) {
         >
           <option value="">Any budget</option>
           {budgetOptions.map((option) => (
-            <option key={option} value={option}>
-              Up to ৳{option}
+            <option key={option} value={toMinorUnits(option)}>
+              Up to {formatPrice(toMinorUnits(option))}
             </option>
           ))}
         </select>

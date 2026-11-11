@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -8,6 +7,7 @@ import { Suspense, useEffect, useState } from "react";
 import { Footer } from "@/components/layout/footer";
 import { Nav } from "@/components/layout/nav";
 import { Card } from "@/components/ui/card";
+import { FallbackImage } from "@/components/ui/fallback-image";
 import { fetchPublicMarketplaceData, formatPrice, PublicMarketplaceData } from "@/lib/public-data";
 
 export default function ExperienceDetailPage() {
@@ -72,7 +72,7 @@ function ExperienceDetailContent() {
       <main className="bg-[#F7F5F0] text-[#20201F]">
         <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
           <div className="overflow-hidden rounded-[30px] border border-[#E8E4DC] bg-white shadow-sm">
-            <Image src={experience.image} alt={experience.title} width={1200} height={640} className="h-[360px] w-full object-cover md:h-[520px]" />
+            <FallbackImage src={experience.image} fallback="/placeholder-experience.svg" alt={experience.title} width={1200} height={640} className="h-[360px] w-full object-cover md:h-[520px]" />
           </div>
 
           <div className="mt-8 grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
@@ -126,7 +126,7 @@ function ExperienceDetailContent() {
           <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
             <Card className="p-6">
               <div className="grid gap-6 md:grid-cols-[180px_1fr] md:items-center">
-                <Image src={host.image} alt={host.name} width={260} height={260} className="h-44 w-full rounded-2xl object-cover md:h-44" />
+                <FallbackImage src={host.image} fallback="/placeholder-host.svg" alt={host.name} width={260} height={260} className="h-44 w-full rounded-2xl object-cover md:h-44" />
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-2xl font-semibold text-[#20201F]">{host.name}</h2>

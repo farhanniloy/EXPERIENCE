@@ -1,3 +1,7 @@
+import { apiRequest } from "@/lib/api-client";
+
+export { formatPrice } from "@/lib/currency";
+
 export type SiteData = {
   brand: string;
   tagline: string;
@@ -31,6 +35,7 @@ export type Experience = {
   rating: number;
   instant_book: boolean;
   host_name: string;
+  host_slug?: string;
   image: string;
   tags: string[];
 };
@@ -67,13 +72,49 @@ export type PublicMarketplaceData = {
   collections: Collection[];
 };
 
-export function formatPrice(value: number, currency = "BDT") {
-  return new Intl.NumberFormat("en-BD", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
+type Page<T> = { results: T[] };
+type DatabaseCategory = Category;
+type DatabaseHost = {
+  id: string;
+  slug: string;
+  name: string;
+  city: string;
+  headline: string;
+  biography: string;
+  rating: string | number;
+  completed_bookings: number;
+  verified: boolean;
+  image: string;
+  photos: string[];
+  interests: string[];
+};
+type DatabaseExperience = {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  description: string;
+  city: string;
+  host: DatabaseHost;
+  host_name: string;
+  price_minor: number;
+  currency: string;
+  duration_minutes: number;
+  category: string;
+  rating: string | number;
+  instant_booking_enabled: boolean;
+  image: string;
+  tags: string[];
+};
+type DatabaseCollection = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  city: string;
+  image: string;
+  experiences: DatabaseExperience[];
+};
 
 export async function fetchPublicMarketplaceData(
   params: Record<string, string | string[] | null | undefined> = {},
@@ -93,15 +134,75 @@ export async function fetchPublicMarketplaceData(
     search.append(key, value);
   });
 
-  const endpoint = `/api/v1/public/marketplace${search.toString() ? `?${search.toString()}` : ""}`;
+  const suffix = search.toString() ? `?${search.toString()}` : "";
+  const [fixture, categories, experiencePage, hostPage, collectionPage] = await Promise.all([
+    apiRequest<PublicMarketplaceData>(`public/marketplace${suffix}`),
+    apiRequest<DatabaseCategory[]>("categories"),
+    apiRequest<Page<DatabaseExperience>>(`experiences${suffix}`),
+    apiRequest<Page<DatabaseHost>>("companions"),
+    apiRequest<Page<DatabaseCollection>>("collections"),
+  ]);
 
-  const response = await fetch(endpoint, {
-    cache: "no-store",
+  const companions = new Map(fixture.companions.map((host) => [host.slug, host]));
+  hostPage.results.forEach((host) => {
+    companions.set(host.slug, {
+      id: host.id,
+      slug: host.slug,
+      name: host.name,
+      city: host.city,
+      headline: host.headline,
+      bio: host.biography,
+      rating: Number(host.rating),
+      completed_bookings: host.completed_bookings,
+      verified: host.verified,
+      image: host.photos[0] ?? host.image,
+      tags: host.interests,
+    });
   });
 
-  if (!response.ok) {
-    throw new Error(`Marketplace request failed: ${response.status}`);
-  }
+  const experiences = new Map(fixture.experiences.map((item) => [item.slug, item]));
+  experiencePage.results.forEach((item) => {
+    experiences.set(item.slug, {
+      id: item.id,
+      slug: item.slug,
+      title: item.title,
+      city: item.city,
+      summary: item.summary,
+      description: item.description,
+      price_minor: item.price_minor,
+      currency: item.currency,
+      duration_minutes: item.duration_minutes,
+      category: item.category,
+      rating: Number(item.rating),
+      instant_book: item.instant_booking_enabled,
+      host_name: item.host_name,
+      host_slug: item.host.slug,
+      image: item.image,
+      tags: item.tags,
+    });
+  });
 
-  return response.json() as Promise<PublicMarketplaceData>;
+  const mergedCategories = new Map(fixture.categories.map((item) => [item.slug, item]));
+  categories.forEach((category) => mergedCategories.set(category.slug, category));
+
+  const collections = new Map(fixture.collections.map((item) => [item.slug, item]));
+  collectionPage.results.forEach((item) => {
+    collections.set(item.slug, {
+      id: item.id,
+      slug: item.slug,
+      title: item.title,
+      description: item.description,
+      city: item.city,
+      image: item.image,
+      experience_ids: item.experiences.map((experience) => experience.id),
+    });
+  });
+
+  return {
+    ...fixture,
+    categories: [...mergedCategories.values()],
+    experiences: [...experiences.values()],
+    companions: [...companions.values()],
+    collections: [...collections.values()],
+  };
 }
