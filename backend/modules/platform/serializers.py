@@ -105,6 +105,7 @@ class PublicExperienceSerializer(serializers.ModelSerializer):
         fields = [
             "id", "slug", "title", "summary", "description", "city", "host", "host_name",
             "price_minor", "currency", "duration_minutes", "category", "rating",
+            "min_duration_minutes", "max_duration_minutes",
             "instant_booking_enabled", "instant_book", "image", "tags",
         ]
 

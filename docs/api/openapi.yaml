@@ -177,6 +177,123 @@ paths:
               schema:
                 $ref: '#/components/schemas/UserMe'
           description: ''
+  /api/v1/bookings:
+    get:
+      operationId: v1_bookings_list
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingOutput'
+          description: ''
+    post:
+      operationId: bookings_create
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BookingCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BookingCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingOutput'
+          description: ''
+  /api/v1/bookings/{booking_id}:
+    get:
+      operationId: booking_action
+      parameters:
+      - in: path
+        name: booking_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingOutput'
+          description: ''
+  /api/v1/bookings/{booking_id}/{action}:
+    post:
+      operationId: v1_bookings_create
+      parameters:
+      - in: path
+        name: action
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: booking_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingOutput'
+          description: ''
+  /api/v1/bookings/{booking_id}/events:
+    get:
+      operationId: v1_bookings_events_list
+      parameters:
+      - in: path
+        name: booking_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingEventOutput'
+          description: ''
   /api/v1/categories:
     get:
       operationId: v1_categories_list
@@ -355,6 +472,162 @@ paths:
               schema:
                 $ref: '#/components/schemas/HostProfileOutput'
           description: ''
+  /api/v1/companions/me/availability:
+    get:
+      operationId: v1_companions_me_availability_retrieve
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityOverview'
+          description: ''
+  /api/v1/companions/me/availability/exceptions:
+    post:
+      operationId: v1_companions_me_availability_exceptions_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AvailabilityException'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AvailabilityException'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AvailabilityException'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityException'
+          description: ''
+  /api/v1/companions/me/availability/exceptions/{exception_id}:
+    delete:
+      operationId: v1_companions_me_availability_exceptions_destroy
+      parameters:
+      - in: path
+        name: exception_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/companions/me/availability/preferences:
+    patch:
+      operationId: v1_companions_me_availability_preferences_partial_update
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAvailabilityPreferences'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAvailabilityPreferences'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAvailabilityPreferences'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityPreferences'
+          description: ''
+  /api/v1/companions/me/availability/rules:
+    post:
+      operationId: v1_companions_me_availability_rules_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AvailabilityRule'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AvailabilityRule'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AvailabilityRule'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityRule'
+          description: ''
+  /api/v1/companions/me/availability/rules/{rule_id}:
+    patch:
+      operationId: v1_companions_me_availability_rules_partial_update
+      parameters:
+      - in: path
+        name: rule_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAvailabilityRule'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAvailabilityRule'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAvailabilityRule'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityRule'
+          description: ''
+    delete:
+      operationId: v1_companions_me_availability_rules_destroy
+      parameters:
+      - in: path
+        name: rule_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/companions/me/verification:
     post:
       operationId: v1_companions_me_verification_create
@@ -492,6 +765,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedPublicExperienceList'
+          description: ''
+  /api/v1/experiences/{experience_slug}/availability:
+    get:
+      operationId: v1_experiences_availability_list
+      parameters:
+      - in: path
+        name: experience_slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AvailabilitySlot'
           description: ''
   /api/v1/experiences/{slug}:
     get:
@@ -682,6 +978,209 @@ components:
           type: boolean
       required:
       - confirmed_18
+    AvailabilityException:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        start_at:
+          type: string
+          format: date-time
+        end_at:
+          type: string
+          format: date-time
+        exception_type:
+          $ref: '#/components/schemas/ExceptionTypeEnum'
+        notes:
+          type: string
+          maxLength: 250
+      required:
+      - end_at
+      - exception_type
+      - id
+      - start_at
+    AvailabilityOverview:
+      type: object
+      properties:
+        preferences:
+          $ref: '#/components/schemas/AvailabilityPreferences'
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilityRule'
+        exceptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilityException'
+      required:
+      - exceptions
+      - preferences
+      - rules
+    AvailabilityPreferences:
+      type: object
+      properties:
+        minimum_notice_hours:
+          type: integer
+          maximum: 720
+          minimum: 0
+        max_advance_days:
+          type: integer
+          maximum: 365
+          minimum: 1
+        buffer_minutes:
+          type: integer
+          maximum: 1440
+          minimum: 0
+    AvailabilityRule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        weekday:
+          type: integer
+          maximum: 6
+          minimum: 0
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+        timezone:
+          type: string
+          maxLength: 64
+        is_active:
+          type: boolean
+          default: true
+      required:
+      - end_time
+      - id
+      - start_time
+      - timezone
+      - weekday
+    AvailabilitySlot:
+      type: object
+      properties:
+        start_at:
+          type: string
+          format: date-time
+        end_at:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+      required:
+      - end_at
+      - start_at
+      - timezone
+    BookingCreate:
+      type: object
+      properties:
+        experience_id:
+          type: string
+          format: uuid
+        start_at:
+          type: string
+          format: date-time
+        duration_minutes:
+          type: integer
+          maximum: 1440
+          minimum: 15
+        booking_mode:
+          $ref: '#/components/schemas/BookingModeEnum'
+        timezone:
+          type: string
+          maxLength: 64
+        public_venue_name:
+          type: string
+          maxLength: 180
+        customer_note:
+          type: string
+          maxLength: 2000
+      required:
+      - booking_mode
+      - duration_minutes
+      - experience_id
+      - public_venue_name
+      - start_at
+      - timezone
+    BookingEventOutput:
+      type: object
+      properties:
+        event_type:
+          type: string
+        previous_state:
+          type: string
+        new_state:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - created_at
+      - event_type
+      - new_state
+      - previous_state
+    BookingModeEnum:
+      enum:
+      - request
+      - instant
+      type: string
+      description: |-
+        * `request` - request
+        * `instant` - instant
+    BookingOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        start_at:
+          type: string
+          format: date-time
+        end_at:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+        experience_title:
+          type: string
+        other_party:
+          type: string
+        viewer_role:
+          $ref: '#/components/schemas/ViewerRoleEnum'
+        public_venue_name:
+          type: string
+        customer_note:
+          type: string
+        total_minor:
+          type: integer
+        currency:
+          type: string
+        payment_deadline:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - currency
+      - customer_note
+      - end_at
+      - experience_title
+      - id
+      - other_party
+      - payment_deadline
+      - public_venue_name
+      - start_at
+      - status
+      - timezone
+      - total_minor
+      - viewer_role
     BookingSummary:
       type: object
       properties:
@@ -732,6 +1231,14 @@ components:
       required:
       - bookings
       - display_name
+    ExceptionTypeEnum:
+      enum:
+      - available
+      - unavailable
+      type: string
+      description: |-
+        * `available` - Available
+        * `unavailable` - Unavailable
     ExperienceWrite:
       type: object
       properties:
@@ -1093,6 +1600,44 @@ components:
           format: email
       required:
       - email
+    PatchedAvailabilityPreferences:
+      type: object
+      properties:
+        minimum_notice_hours:
+          type: integer
+          maximum: 720
+          minimum: 0
+        max_advance_days:
+          type: integer
+          maximum: 365
+          minimum: 1
+        buffer_minutes:
+          type: integer
+          maximum: 1440
+          minimum: 0
+    PatchedAvailabilityRule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        weekday:
+          type: integer
+          maximum: 6
+          minimum: 0
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+        timezone:
+          type: string
+          maxLength: 64
+        is_active:
+          type: boolean
+          default: true
     PatchedExperienceWrite:
       type: object
       properties:
@@ -1313,6 +1858,16 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,1}(?:\.\d{0,2})?$
+        min_duration_minutes:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+        max_duration_minutes:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
         instant_booking_enabled:
           type: boolean
         instant_book:
@@ -1443,6 +1998,14 @@ components:
       - label
       - provider
       - status
+    ViewerRoleEnum:
+      enum:
+      - customer
+      - host
+      type: string
+      description: |-
+        * `customer` - customer
+        * `host` - host
   securitySchemes:
     cookieAuth:
       type: apiKey

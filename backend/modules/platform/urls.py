@@ -27,6 +27,19 @@ from .host_views import (
     ModerationQueueView,
     ModerationReviewView,
 )
+from .booking_views import (
+    BookingActionView,
+    BookingDetailView,
+    BookingEventListView,
+    BookingListCreateView,
+    MyAvailabilityExceptionDetailView,
+    MyAvailabilityExceptionsView,
+    MyAvailabilityPreferencesView,
+    MyAvailabilityRuleDetailView,
+    MyAvailabilityRulesView,
+    MyAvailabilityView,
+    PublicExperienceAvailabilityView,
+)
 
 urlpatterns = [
     path("auth/csrf", CsrfTokenView.as_view(), name="auth-csrf"),
@@ -39,6 +52,37 @@ urlpatterns = [
     path("companions/applications", CompanionApplicationView.as_view(), name="companion-application"),
     path("companions/me", CompanionMeView.as_view(), name="companion-me"),
     path("companions/me/verification", DevelopmentAgeVerificationView.as_view(), name="companion-verification"),
+    path("companions/me/availability", MyAvailabilityView.as_view(), name="my-availability"),
+    path(
+        "companions/me/availability/preferences",
+        MyAvailabilityPreferencesView.as_view(),
+        name="my-availability-preferences",
+    ),
+    path("companions/me/availability/rules", MyAvailabilityRulesView.as_view(), name="my-availability-rules"),
+    path(
+        "companions/me/availability/rules/<uuid:rule_id>",
+        MyAvailabilityRuleDetailView.as_view(),
+        name="my-availability-rule-detail",
+    ),
+    path(
+        "companions/me/availability/exceptions",
+        MyAvailabilityExceptionsView.as_view(),
+        name="my-availability-exceptions",
+    ),
+    path(
+        "companions/me/availability/exceptions/<uuid:exception_id>",
+        MyAvailabilityExceptionDetailView.as_view(),
+        name="my-availability-exception-detail",
+    ),
+    path(
+        "experiences/<slug:experience_slug>/availability",
+        PublicExperienceAvailabilityView.as_view(),
+        name="experience-availability",
+    ),
+    path("bookings", BookingListCreateView.as_view(), name="booking-list-create"),
+    path("bookings/<uuid:booking_id>", BookingDetailView.as_view(), name="booking-detail"),
+    path("bookings/<uuid:booking_id>/events", BookingEventListView.as_view(), name="booking-events"),
+    path("bookings/<uuid:booking_id>/<str:action>", BookingActionView.as_view(), name="booking-action"),
     path("experiences/manage", ManagedExperienceListView.as_view(), name="experience-manage-list"),
     path(
         "experiences/manage/<uuid:experience_id>",

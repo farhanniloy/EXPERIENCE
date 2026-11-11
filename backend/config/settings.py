@@ -113,6 +113,7 @@ REST_FRAMEWORK = {
         "password_reset": "5/hour",
         "host_onboarding": "10/hour",
         "experience_write": "30/hour",
+        "booking": "60/hour",
         "moderation": "120/hour",
         "default": "1000/day",
     },

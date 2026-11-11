@@ -512,6 +512,7 @@ def serialize_booking(booking, user, host_view=False):
         other_party = booking.host.user.along_account.display_name
     return {
         "id": str(booking.id),
+        "id": str(booking.id),
         "status": booking.status,
         "start_at": booking.start_at.isoformat(),
         "end_at": booking.end_at.isoformat(),

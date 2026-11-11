@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Nav } from "@/components/layout/nav";
 import { ApiError, apiRequest } from "@/lib/api-client";
 import { formatPrice } from "@/lib/public-data";
+import { siteConfig } from "@/lib/site-config";
 import { workflowCopy } from "@/lib/workflow-copy";
 
 type Booking = {
@@ -59,8 +60,12 @@ export function CustomerDashboard() {
               {data.bookings.map((booking) => (
                 <article key={booking.id} className="grid gap-3 rounded-2xl border border-[#E8E4DC] bg-white p-5 sm:grid-cols-[1fr_auto] sm:items-center">
                   <div>
-                    <h2 className="font-semibold">{booking.experience_title}</h2>
-                    <p className="mt-1 text-sm text-[#77736D]">With {booking.other_party} · {new Date(booking.start_at).toLocaleString()}</p>
+                    <Link href={`/bookings/${booking.id}`} className="font-semibold text-[#75404A]">{booking.experience_title}</Link>
+                    <p className="mt-1 text-sm text-[#77736D]">With {booking.other_party} · {new Intl.DateTimeFormat("en", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                      timeZone: siteConfig.timezone,
+                    }).format(new Date(booking.start_at))}</p>
                   </div>
                   <div className="text-sm sm:text-right">
                     <p className="font-medium">{formatPrice(booking.total_minor, booking.currency)}</p>

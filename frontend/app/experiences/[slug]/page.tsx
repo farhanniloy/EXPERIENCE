@@ -101,11 +101,11 @@ function ExperienceDetailContent() {
               <div className="mt-3 text-4xl font-semibold text-[#20201F]">{formatPrice(experience.price_minor, experience.currency)}</div>
               <p className="mt-2 text-sm text-[#77736D]">Includes safe public venue booking, host guidance, and transparent pricing.</p>
               <div className="mt-6 flex gap-3">
-                <Link href="/explore" className="inline-flex flex-1 items-center justify-center rounded-full bg-[#75404A] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#62373d]">
+                <Link href={`/experiences/${experience.slug}/book`} className="inline-flex flex-1 items-center justify-center rounded-full bg-[#75404A] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#62373d]">
                   Reserve now
                 </Link>
-                <Link href="/about" className="inline-flex flex-1 items-center justify-center rounded-full border border-[#E8E4DC] bg-[#F7F5F0] px-4 py-2.5 text-sm font-medium text-[#20201F] transition hover:bg-[#efe9e2]">
-                  Message host
+                <Link href={`/companions/${host?.slug ?? experience.host_slug ?? ""}`} className="inline-flex flex-1 items-center justify-center rounded-full border border-[#E8E4DC] bg-[#F7F5F0] px-4 py-2.5 text-sm font-medium text-[#20201F] transition hover:bg-[#efe9e2]">
+                  View host
                 </Link>
               </div>
               <div className="mt-5 rounded-2xl bg-[#F7F5F0] p-4 text-sm text-[#20201F]">

@@ -1,3 +1,5 @@
+import hashlib
+import json
 from datetime import timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -15,13 +17,23 @@ from .models import (
     Experience,
     HostProfile,
     ModerationQueueItem,
+    User,
     VerificationCheck,
 )
+from .availability import is_slot_available
 from .moderation import flag_experience, queue_listing_review
 
 
+class BookingSlotUnavailable(ValidationError):
+    pass
+
+
 ALLOWED_BOOKING_TRANSITIONS = {
-    Booking.Status.REQUESTED: {Booking.Status.DECLINED, Booking.Status.AWAITING_PAYMENT},
+    Booking.Status.REQUESTED: {
+        Booking.Status.DECLINED,
+        Booking.Status.AWAITING_PAYMENT,
+        Booking.Status.CANCELLED,
+    },
     Booking.Status.AWAITING_PAYMENT: {
         Booking.Status.CONFIRMED,
         Booking.Status.EXPIRED,
@@ -111,7 +123,11 @@ def transition_booking(booking_id, next_status, actor=None, metadata=None):
 
     previous_status = booking.status
     booking.status = next_status
-    booking.save(update_fields=["status", "updated_at"])
+    update_fields = ["status", "updated_at"]
+    if next_status in {Booking.Status.CANCELLED, Booking.Status.EXPIRED, Booking.Status.DECLINED}:
+        booking.payment_deadline = None
+        update_fields.append("payment_deadline")
+    booking.save(update_fields=update_fields)
     BookingEvent.objects.create(
         booking=booking,
         actor=actor,
@@ -123,6 +139,37 @@ def transition_booking(booking_id, next_status, actor=None, metadata=None):
     return booking
 
 
+def _schedule_hold_expiry(booking):
+    from .tasks import expire_booking_hold
+
+    delay = max(0, int((booking.payment_deadline - timezone.now()).total_seconds()))
+    transaction.on_commit(
+        lambda: expire_booking_hold.apply_async(args=[str(booking.pk)], countdown=delay)
+    )
+
+
+def _expire_due_holds(host):
+    now = timezone.now()
+    due_holds = Booking.objects.select_for_update().filter(
+        host=host,
+        status=Booking.Status.AWAITING_PAYMENT,
+        payment_deadline__lte=now,
+    )
+    for booking in due_holds:
+        previous_status = booking.status
+        booking.status = Booking.Status.EXPIRED
+        booking.payment_deadline = None
+        booking.save(update_fields=["status", "payment_deadline", "updated_at"])
+        BookingEvent.objects.create(
+            booking=booking,
+            event_type="status_changed",
+            previous_state=previous_status,
+            new_state=booking.status,
+            metadata={"reason": "payment_hold_expired"},
+        )
+
+
+@transaction.atomic
 def create_booking(
     *,
     customer,
@@ -136,8 +183,12 @@ def create_booking(
     public_venue_name,
     customer_note="",
 ):
+    if not idempotency_key or len(idempotency_key) > 128:
+        raise ValidationError("A valid idempotency key is required.")
     if end_at <= start_at:
         raise ValidationError("The booking end must be after its start.")
+    if start_at <= timezone.now():
+        raise ValidationError("Bookings must start in the future.")
     if timezone.is_naive(start_at) or timezone.is_naive(end_at):
         raise ValidationError("Booking times must include a timezone.")
     try:
@@ -146,6 +197,8 @@ def create_booking(
         raise ValidationError("The booking timezone is invalid.") from exc
     if experience.host_id != host.pk:
         raise ValidationError("The experience does not belong to this host.")
+    if host.user_id == customer.pk:
+        raise ValidationError("Hosts cannot book their own experiences.")
     if host.status != HostProfile.Status.APPROVED:
         raise ValidationError("Only approved hosts can receive bookings.")
     if experience.status != Experience.Status.PUBLISHED:
@@ -163,62 +216,145 @@ def create_booking(
     ).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())).exists():
         raise ValidationError("Age verification is required to book.")
 
-    with transaction.atomic():
-        existing = Booking.objects.filter(customer=customer, idempotency_key=idempotency_key).first()
-        if existing:
-            return existing
-        HostProfile.objects.select_for_update().get(pk=host.pk)
-        status = (
-            Booking.Status.AWAITING_PAYMENT
-            if booking_mode == "instant"
-            else Booking.Status.REQUESTED
-        )
-        payment_deadline = (
-            timezone.now() + timedelta(minutes=getattr(settings, "BOOKING_HOLD_MINUTES", 15))
-            if booking_mode == "instant"
-            else None
-        )
-        try:
-            with transaction.atomic():
-                booking = Booking.objects.create(
-                    customer=customer,
-                    host=host,
-                    experience=experience,
-                    start_at=start_at,
-                    end_at=end_at,
-                    timezone=timezone_name,
-                    status=status,
-                    currency=experience.currency,
-                    base_price_minor=experience.price_minor,
-                    total_minor=experience.price_minor,
-                    payment_deadline=payment_deadline,
-                    public_venue_name=public_venue_name.strip(),
-                    customer_note=customer_note,
-                    idempotency_key=idempotency_key,
-                    snapshot={
-                        "title": experience.title,
-                        "duration_minutes": int((end_at - start_at).total_seconds() // 60),
-                        "base_price_minor": experience.price_minor,
-                        "fee_minor": 0,
-                        "tax_minor": 0,
-                        "currency": experience.currency,
-                        "cancellation_policy": experience.cancellation_policy,
-                        "booking_mode": booking_mode,
-                        "public_venue_name": public_venue_name.strip(),
-                        "start_at": start_at.isoformat(),
-                        "end_at": end_at.isoformat(),
-                    },
-                )
-        except IntegrityError:
-            duplicate = Booking.objects.filter(customer=customer, idempotency_key=idempotency_key).first()
-            if duplicate:
-                return duplicate
-            raise
-        BookingEvent.objects.create(
-            booking=booking,
-            actor=customer,
-            event_type="created",
-            new_state=booking.status,
-            metadata={"booking_mode": booking_mode},
-        )
-        return booking
+    duration_minutes = int((end_at - start_at).total_seconds() // 60)
+    request_data = {
+        "experience_id": str(experience.pk),
+        "start_at": start_at.isoformat(),
+        "end_at": end_at.isoformat(),
+        "timezone": timezone_name,
+        "booking_mode": booking_mode,
+        "public_venue_name": public_venue_name.strip(),
+        "customer_note": customer_note,
+    }
+    request_fingerprint = hashlib.sha256(
+        json.dumps(request_data, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    existing = Booking.objects.filter(customer=customer, idempotency_key=idempotency_key).first()
+    if existing:
+        if existing.snapshot.get("request_fingerprint") != request_fingerprint:
+            raise ValidationError("This idempotency key was already used for a different booking request.")
+        return existing
+
+    locked_host = HostProfile.objects.select_for_update().get(pk=host.pk)
+    _expire_due_holds(locked_host)
+    locked_experience = Experience.objects.select_for_update().get(pk=experience.pk)
+    if (
+        locked_host.status != HostProfile.Status.APPROVED
+        or not User.objects.filter(auth_user=locked_host.user_id, status=User.Status.ACTIVE).exists()
+    ):
+        raise ValidationError("Only approved hosts can receive bookings.")
+    if locked_experience.host_id != locked_host.pk or locked_experience.status != Experience.Status.PUBLISHED:
+        raise ValidationError("This experience is no longer available for booking.")
+    if not User.objects.filter(auth_user=customer, status=User.Status.ACTIVE).exists():
+        raise ValidationError("This account cannot create bookings.")
+    if not is_slot_available(
+        locked_host,
+        locked_experience,
+        start_at,
+        duration_minutes,
+        timezone_name,
+    ):
+        raise BookingSlotUnavailable("This time is no longer available.")
+
+    booking_status = (
+        Booking.Status.AWAITING_PAYMENT
+        if booking_mode == "instant"
+        else Booking.Status.REQUESTED
+    )
+    payment_deadline = (
+        timezone.now() + timedelta(minutes=getattr(settings, "BOOKING_HOLD_MINUTES", 15))
+        if booking_mode == "instant"
+        else None
+    )
+    try:
+        with transaction.atomic():
+            booking = Booking.objects.create(
+                customer=customer,
+                host=locked_host,
+                experience=locked_experience,
+                start_at=start_at,
+                end_at=end_at,
+                timezone=timezone_name,
+                status=booking_status,
+                currency=locked_experience.currency,
+                base_price_minor=locked_experience.price_minor,
+                total_minor=locked_experience.price_minor,
+                payment_deadline=payment_deadline,
+                public_venue_name=public_venue_name.strip(),
+                customer_note=customer_note,
+                idempotency_key=idempotency_key,
+                snapshot={
+                    "title": locked_experience.title,
+                    "host_name": locked_host.user.along_account.display_name,
+                    "customer_name": getattr(getattr(customer, "along_account", None), "display_name", ""),
+                    "duration_minutes": duration_minutes,
+                    "base_price_minor": locked_experience.price_minor,
+                    "fee_minor": 0,
+                    "tax_minor": 0,
+                    "currency": locked_experience.currency,
+                    "cancellation_policy": locked_experience.cancellation_policy,
+                    "booking_mode": booking_mode,
+                    "public_venue_name": public_venue_name.strip(),
+                    "meeting_arrangement": {"type": "public_venue", "name": public_venue_name.strip()},
+                    "start_at": start_at.isoformat(),
+                    "end_at": end_at.isoformat(),
+                    "request_fingerprint": request_fingerprint,
+                },
+            )
+    except IntegrityError:
+        duplicate = Booking.objects.filter(customer=customer, idempotency_key=idempotency_key).first()
+        if duplicate:
+            if duplicate.snapshot.get("request_fingerprint") != request_fingerprint:
+                raise ValidationError("This idempotency key was already used for a different booking request.")
+            return duplicate
+        raise
+    BookingEvent.objects.create(
+        booking=booking,
+        actor=customer,
+        event_type="created",
+        new_state=booking.status,
+        metadata={"booking_mode": booking_mode},
+    )
+    if payment_deadline:
+        _schedule_hold_expiry(booking)
+    return booking
+
+
+@transaction.atomic
+def accept_booking(booking_id, actor):
+    booking_ref = Booking.objects.select_related("host").get(pk=booking_id)
+    locked_host = HostProfile.objects.select_for_update().get(pk=booking_ref.host_id)
+    _expire_due_holds(locked_host)
+    locked_experience = Experience.objects.select_for_update().get(pk=booking_ref.experience_id)
+    booking = Booking.objects.select_for_update().select_related("experience").get(pk=booking_id)
+    if booking.status != Booking.Status.REQUESTED:
+        raise ValidationError(f"Booking cannot be accepted from {booking.status}.")
+    if (
+        locked_host.status != HostProfile.Status.APPROVED
+        or locked_experience.status != Experience.Status.PUBLISHED
+        or not User.objects.filter(auth_user=locked_host.user_id, status=User.Status.ACTIVE).exists()
+    ):
+        raise ValidationError("This experience is no longer available for booking.")
+    if not is_slot_available(
+        booking.host,
+        booking.experience,
+        booking.start_at,
+        int((booking.end_at - booking.start_at).total_seconds() // 60),
+        booking.timezone,
+        exclude_booking_id=booking.pk,
+    ):
+        raise BookingSlotUnavailable("This time is no longer available.")
+    booking.status = Booking.Status.AWAITING_PAYMENT
+    booking.payment_deadline = timezone.now() + timedelta(
+        minutes=getattr(settings, "BOOKING_HOLD_MINUTES", 15)
+    )
+    booking.save(update_fields=["status", "payment_deadline", "updated_at"])
+    BookingEvent.objects.create(
+        booking=booking,
+        actor=actor,
+        event_type="status_changed",
+        previous_state=Booking.Status.REQUESTED,
+        new_state=booking.status,
+    )
+    _schedule_hold_expiry(booking)
+    return booking

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Nav } from "@/components/layout/nav";
 import { ApiError, apiRequest } from "@/lib/api-client";
 import { formatPrice } from "@/lib/public-data";
+import { siteConfig } from "@/lib/site-config";
 import { workflowCopy } from "@/lib/workflow-copy";
 
 type Host = {
@@ -72,6 +73,7 @@ export function HostDashboard() {
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <Link href="/become-a-companion" className="rounded-full border border-[#E8E4DC] px-5 py-3 text-sm font-medium">Edit profile</Link>
+                  <Link href="/dashboard/companion/availability" className="rounded-full border border-[#E8E4DC] px-5 py-3 text-sm font-medium">{workflowCopy.availabilityTitle}</Link>
                   <Link href="/dashboard/companion/experiences/new" className="rounded-full bg-[#75404A] px-5 py-3 text-sm font-medium text-white">Create experience</Link>
                 </div>
               </section>
@@ -118,8 +120,12 @@ export function HostDashboard() {
                     {data.bookings.map((booking) => (
                       <article key={booking.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E8E4DC] bg-white p-5">
                         <div>
-                          <h3 className="font-medium">{booking.experience_title}</h3>
-                          <p className="mt-1 text-sm text-[#77736D]">With {booking.other_party} · {new Date(booking.start_at).toLocaleString()}</p>
+                          <Link href={`/bookings/${booking.id}`} className="font-medium text-[#75404A]">{booking.experience_title}</Link>
+                          <p className="mt-1 text-sm text-[#77736D]">With {booking.other_party} · {new Intl.DateTimeFormat("en", {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                            timeZone: siteConfig.timezone,
+                          }).format(new Date(booking.start_at))}</p>
                         </div>
                         <div className="text-sm sm:text-right">
                           <p>{formatPrice(booking.total_minor, booking.currency)}</p>

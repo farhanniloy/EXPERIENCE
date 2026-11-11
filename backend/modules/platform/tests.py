@@ -14,7 +14,9 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from .models import (
+    AvailabilityException,
     AvailabilityRule,
+    Booking,
     Category,
     Experience,
     HostProfile,
@@ -22,7 +24,7 @@ from .models import (
     User,
     VerificationCheck,
 )
-from .services import create_booking, transition_booking
+from .services import BookingSlotUnavailable, create_booking, transition_booking
 from .permissions import IsBookingParty
 
 
@@ -42,6 +44,16 @@ class PlatformAPITests(APITestCase):
             verified=True,
             languages=["English"],
         )
+        AvailabilityRule.objects.bulk_create([
+            AvailabilityRule(
+                host=self.host,
+                weekday=weekday,
+                start_time=time(0, 0),
+                end_time=time(23, 59),
+                timezone="Asia/Dhaka",
+            )
+            for weekday in range(7)
+        ])
         self.category = Category.objects.create(slug="movies", name="Movies", is_active=True)
         self.experience = Experience.objects.create(
             host=self.host,
@@ -427,6 +439,161 @@ class PlatformAPITests(APITestCase):
         with self.assertRaises(ValidationError):
             transition_booking(booking.id, "completed", actor=self.customer.auth_user)
 
+    def test_booking_api_is_idempotent_and_requires_matching_key_payload(self):
+        self.client.force_authenticate(self.customer.auth_user)
+        VerificationCheck.objects.create(
+            user=self.customer.auth_user,
+            provider="sample",
+            check_type=VerificationCheck.CheckType.AGE,
+            status=VerificationCheck.Status.APPROVED,
+        )
+        start = timezone.now() + timedelta(days=5)
+        payload = {
+            "experience_id": str(self.experience.id),
+            "start_at": start.isoformat(),
+            "duration_minutes": 120,
+            "booking_mode": "request",
+            "timezone": "Asia/Dhaka",
+            "public_venue_name": "Dhaka public cinema",
+            "customer_note": "Meet by the public entrance.",
+        }
+        headers = {"HTTP_IDEMPOTENCY_KEY": "booking-api-idempotency-1"}
+        first = self.client.post("/api/v1/bookings", payload, format="json", **headers)
+        self.assertEqual(first.status_code, 201, first.data)
+        duplicate = self.client.post("/api/v1/bookings", payload, format="json", **headers)
+        self.assertEqual(duplicate.status_code, 201, duplicate.data)
+        self.assertEqual(first.data["id"], duplicate.data["id"])
+        self.assertEqual(Booking.objects.filter(customer=self.customer.auth_user).count(), 1)
+
+        payload["public_venue_name"] = "Different public venue"
+        mismatch = self.client.post("/api/v1/bookings", payload, format="json", **headers)
+        self.assertEqual(mismatch.status_code, 400)
+        self.assertEqual(Booking.objects.filter(customer=self.customer.auth_user).count(), 1)
+
+    @override_settings(BOOKING_HOLD_MINUTES=15)
+    def test_expired_payment_hold_releases_slot(self):
+        from .tasks import expire_booking_hold
+
+        self.client.force_authenticate(self.customer.auth_user)
+        VerificationCheck.objects.create(
+            user=self.customer.auth_user,
+            provider="sample",
+            check_type=VerificationCheck.CheckType.AGE,
+            status=VerificationCheck.Status.APPROVED,
+        )
+        self.experience.instant_booking_enabled = True
+        self.experience.save(update_fields=["instant_booking_enabled", "updated_at"])
+        start = timezone.now() + timedelta(days=6)
+        payload = {
+            "experience_id": str(self.experience.id),
+            "start_at": start.isoformat(),
+            "duration_minutes": 120,
+            "booking_mode": "instant",
+            "timezone": "Asia/Dhaka",
+            "public_venue_name": "Dhaka public cinema",
+        }
+        first = self.client.post(
+            "/api/v1/bookings",
+            payload,
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="booking-expiry-first",
+        )
+        self.assertEqual(first.status_code, 201, first.data)
+        booking = Booking.objects.get(pk=first.data["id"])
+        self.assertEqual(booking.status, Booking.Status.AWAITING_PAYMENT)
+        booking.payment_deadline = timezone.now() - timedelta(seconds=1)
+        booking.save(update_fields=["payment_deadline", "updated_at"])
+        self.assertTrue(expire_booking_hold.run(str(booking.pk)))
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, Booking.Status.EXPIRED)
+        self.assertEqual(booking.events.count(), 2)
+
+        second = self.client.post(
+            "/api/v1/bookings",
+            payload,
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="booking-expiry-second",
+        )
+        self.assertEqual(second.status_code, 201, second.data)
+
+    def test_booking_action_permissions_and_invalid_transitions(self):
+        booking = self._create_booking()
+        self.client.force_authenticate(self.customer.auth_user)
+        forbidden = self.client.post(f"/api/v1/bookings/{booking.id}/accept", {}, format="json")
+        self.assertEqual(forbidden.status_code, 403)
+        self.client.force_authenticate(self.host_user.auth_user)
+        invalid = self.client.post(f"/api/v1/bookings/{booking.id}/complete", {}, format="json")
+        self.assertEqual(invalid.status_code, 400)
+        accepted = self.client.post(f"/api/v1/bookings/{booking.id}/accept", {}, format="json")
+        self.assertEqual(accepted.status_code, 200, accepted.data)
+        self.assertEqual(accepted.data["status"], Booking.Status.AWAITING_PAYMENT)
+
+    def test_availability_rules_preferences_and_exceptions_are_owner_scoped(self):
+        self.client.force_authenticate(self.host_user.auth_user)
+        preferences = self.client.patch(
+            "/api/v1/companions/me/availability/preferences",
+            {"minimum_notice_hours": 4, "max_advance_days": 45, "buffer_minutes": 30},
+            format="json",
+        )
+        self.assertEqual(preferences.status_code, 200)
+        self.host.refresh_from_db()
+        self.assertEqual(self.host.minimum_notice_hours, 4)
+        self.assertEqual(self.host.buffer_minutes, 30)
+
+        created = self.client.post(
+            "/api/v1/companions/me/availability/rules",
+            {
+                "weekday": 0,
+                "start_time": "09:00",
+                "end_time": "17:00",
+                "timezone": "Asia/Dhaka",
+                "is_active": True,
+            },
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        other = User.objects.create_user(
+            "availability-other@example.test",
+            "Along-Availability-Password-391!",
+            display_name="Other",
+        )
+        self.client.force_authenticate(other.auth_user)
+        forbidden = self.client.delete(
+            f"/api/v1/companions/me/availability/rules/{created.data['id']}"
+        )
+        self.assertEqual(forbidden.status_code, 404)
+
+        self.client.force_authenticate(self.host_user.auth_user)
+        exception_start = timezone.now() + timedelta(days=2)
+        exception = self.client.post(
+            "/api/v1/companions/me/availability/exceptions",
+            {
+                "start_at": exception_start.isoformat(),
+                "end_at": (exception_start + timedelta(hours=2)).isoformat(),
+                "exception_type": AvailabilityException.ExceptionType.UNAVAILABLE,
+                "notes": "Personal time",
+            },
+            format="json",
+        )
+        self.assertEqual(exception.status_code, 201, exception.data)
+        self.assertEqual(self.client.get("/api/v1/companions/me/availability").status_code, 200)
+
+    def test_public_availability_applies_notice_and_never_exposes_booking_details(self):
+        start_day = (timezone.now() + timedelta(days=3)).date()
+        response = self.client.get(
+            f"/api/v1/experiences/{self.experience.slug}/availability",
+            {
+                "from": start_day.isoformat(),
+                "to": start_day.isoformat(),
+                "timezone": "Asia/Dhaka",
+                "duration_minutes": 120,
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertTrue(response.data)
+        self.assertEqual(set(response.data[0]), {"start_at", "end_at", "timezone"})
+        self.assertNotIn("customer", response.data[0])
+
     def test_booking_service_uses_server_price_and_requires_age_and_public_venue(self):
         VerificationCheck.objects.create(
             user=self.customer.auth_user,
@@ -504,6 +671,16 @@ class BookingOverlapRaceTests(TransactionTestCase):
             city="Dhaka",
             status=HostProfile.Status.APPROVED,
         )
+        AvailabilityRule.objects.bulk_create([
+            AvailabilityRule(
+                host=host,
+                weekday=weekday,
+                start_time=time(0, 0),
+                end_time=time(23, 59),
+                timezone="Asia/Dhaka",
+            )
+            for weekday in range(7)
+        ])
         self.experience = Experience.objects.create(
             host=host,
             title="Race test experience",
@@ -542,6 +719,8 @@ class BookingOverlapRaceTests(TransactionTestCase):
                 )
                 return "created"
             except IntegrityError:
+                return "conflict"
+            except BookingSlotUnavailable:
                 return "conflict"
             finally:
                 connections.close_all()

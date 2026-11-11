@@ -45,3 +45,18 @@ fixtures until fixture-backed sample content is retired.
 Prices are stored and sent by the API in integer currency minor units. Host
 forms accept normal currency values, and formatting and budget filters use the
 currency's configured minor-unit scale.
+
+## 7. Availability and booking engine
+Availability is calculated from weekly rules and date exceptions in each
+host's IANA timezone. Public slots use 30-minute start increments and apply
+the host's notice, advance-window, and between-booking buffer preferences.
+Instant bookings reserve their slot while awaiting payment; request bookings
+do not reserve a slot until the host accepts them. Host-row locks serialize
+booking and acceptance checks, while the PostgreSQL exclusion constraint
+remains the final guard against overlapping active reservations.
+
+Instant-booking holds default to 15 minutes and expire through a Celery task.
+Expired holds are also cleared when a new booking or host acceptance checks
+availability, so a delayed worker does not keep a slot unavailable. This
+stage records the hold and booking state only; payment processing is not
+implemented, and no booking is confirmed by a browser redirect.

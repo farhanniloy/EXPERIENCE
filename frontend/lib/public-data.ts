@@ -31,6 +31,8 @@ export type Experience = {
   price_minor: number;
   currency: string;
   duration_minutes: number;
+  min_duration_minutes?: number | null;
+  max_duration_minutes?: number | null;
   category: string;
   rating: number;
   instant_book: boolean;
@@ -100,6 +102,8 @@ type DatabaseExperience = {
   price_minor: number;
   currency: string;
   duration_minutes: number;
+  min_duration_minutes: number | null;
+  max_duration_minutes: number | null;
   category: string;
   rating: string | number;
   instant_booking_enabled: boolean;
@@ -172,6 +176,8 @@ export async function fetchPublicMarketplaceData(
       price_minor: item.price_minor,
       currency: item.currency,
       duration_minutes: item.duration_minutes,
+      min_duration_minutes: item.min_duration_minutes,
+      max_duration_minutes: item.max_duration_minutes,
       category: item.category,
       rating: Number(item.rating),
       instant_book: item.instant_booking_enabled,
