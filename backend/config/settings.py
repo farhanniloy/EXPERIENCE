@@ -114,6 +114,8 @@ REST_FRAMEWORK = {
         "host_onboarding": "10/hour",
         "experience_write": "30/hour",
         "booking": "60/hour",
+        "payments": "30/hour",
+        "messaging": "30/hour",
         "moderation": "120/hour",
         "default": "1000/day",
     },
@@ -132,6 +134,13 @@ SPECTACULAR_SETTINGS = {
 CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 BOOKING_HOLD_MINUTES = int(os.environ.get("BOOKING_HOLD_MINUTES", "15"))
+PAYMENTS_PROVIDER = os.environ.get(
+    "PAYMENTS_PROVIDER", "sandbox" if DEBUG and APP_ENV != "production" else ""
+)
+PAYMENT_WEBHOOK_SECRET = os.environ.get(
+    "PAYMENT_WEBHOOK_SECRET",
+    "along-development-webhook-secret" if DEBUG and APP_ENV != "production" else "",
+)
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",

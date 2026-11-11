@@ -294,6 +294,32 @@ paths:
                 items:
                   $ref: '#/components/schemas/BookingEventOutput'
           description: ''
+  /api/v1/bookings/{booking_id}/payment:
+    post:
+      operationId: v1_bookings_payment_create
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: booking_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentOutput'
+          description: ''
   /api/v1/categories:
     get:
       operationId: v1_categories_list
@@ -654,6 +680,98 @@ paths:
               schema:
                 $ref: '#/components/schemas/VerificationOutput'
           description: ''
+  /api/v1/conversations:
+    get:
+      operationId: v1_conversations_list
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConversationOutput'
+          description: ''
+  /api/v1/conversations/{conversation_id}/messages:
+    get:
+      operationId: v1_conversations_messages_list
+      parameters:
+      - in: path
+        name: conversation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MessageOutput'
+          description: ''
+    post:
+      operationId: v1_conversations_messages_create
+      parameters:
+      - in: path
+        name: conversation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MessageCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MessageCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageOutput'
+          description: ''
+  /api/v1/conversations/{conversation_id}/read:
+    post:
+      operationId: v1_conversations_read_create
+      parameters:
+      - in: path
+        name: conversation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationReadOutput'
+          description: ''
   /api/v1/dashboard:
     get:
       operationId: v1_dashboard_retrieve
@@ -899,6 +1017,113 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/payments/{payment_id}:
+    get:
+      operationId: v1_payments_retrieve
+      parameters:
+      - in: path
+        name: payment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentOutput'
+          description: ''
+  /api/v1/payments/{payment_id}/sandbox-complete:
+    post:
+      operationId: v1_payments_sandbox_complete_create
+      parameters:
+      - in: path
+        name: payment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SandboxOutcome'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SandboxOutcome'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SandboxOutcome'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentOutput'
+          description: ''
+  /api/v1/payments/refunds:
+    post:
+      operationId: v1_payments_refunds_create
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RefundCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RefundCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundOutput'
+          description: ''
+  /api/v1/users/{user_id}/block:
+    post:
+      operationId: v1_users_block_create
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlockOutput'
+          description: ''
   /api/v1/users/me:
     get:
       operationId: v1_users_me_retrieve
@@ -960,6 +1185,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserMe'
+          description: ''
+  /api/v1/webhooks/payments/{provider}:
+    post:
+      operationId: v1_webhooks_payments_create
+      parameters:
+      - in: header
+        name: X-Payment-Signature
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: provider
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentWebhookResult'
           description: ''
 components:
   schemas:
@@ -1077,6 +1327,13 @@ components:
       - end_at
       - start_at
       - timezone
+    BlockOutput:
+      type: object
+      properties:
+        blocked:
+          type: boolean
+      required:
+      - blocked
     BookingCreate:
       type: object
       properties:
@@ -1139,6 +1396,14 @@ components:
         id:
           type: string
           format: uuid
+        conversation_id:
+          type: string
+          format: uuid
+          nullable: true
+        other_party_user_id:
+          type: string
+          format: uuid
+          nullable: true
         status:
           type: string
         start_at:
@@ -1168,12 +1433,14 @@ components:
           format: date-time
           nullable: true
       required:
+      - conversation_id
       - currency
       - customer_note
       - end_at
       - experience_title
       - id
       - other_party
+      - other_party_user_id
       - payment_deadline
       - public_venue_name
       - start_at
@@ -1212,6 +1479,41 @@ components:
       - start_at
       - status
       - total_minor
+    ConversationOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        booking_id:
+          type: string
+          format: uuid
+        experience_title:
+          type: string
+        other_party:
+          type: string
+        unread_count:
+          type: integer
+        latest_message:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - booking_id
+      - experience_title
+      - id
+      - latest_message
+      - other_party
+      - unread_count
+      - updated_at
+    ConversationReadOutput:
+      type: object
+      properties:
+        marked_read:
+          type: integer
+      required:
+      - marked_read
     CsrfToken:
       type: object
       properties:
@@ -1451,6 +1753,44 @@ components:
       - status
       - summary
       - title
+    MessageCreate:
+      type: object
+      properties:
+        body:
+          type: string
+          maxLength: 5000
+      required:
+      - body
+    MessageOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        sender_id:
+          type: string
+          format: uuid
+        is_mine:
+          type: boolean
+        body:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        moderation_status:
+          type: string
+      required:
+      - body
+      - created_at
+      - id
+      - is_mine
+      - moderation_status
+      - read_at
+      - sender_id
     ModerationAction:
       type: object
       properties:
@@ -1520,6 +1860,16 @@ components:
       - host_status
       - id
       - queue_type
+    OutcomeEnum:
+      enum:
+      - success
+      - failure
+      - expiry
+      type: string
+      description: |-
+        * `success` - success
+        * `failure` - failure
+        * `expiry` - expiry
     PaginatedPublicCollectionList:
       type: object
       required:
@@ -1738,6 +2088,50 @@ components:
         is_email_verified:
           type: boolean
           readOnly: true
+    PaymentOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        booking_id:
+          type: string
+          format: uuid
+        booking_status:
+          type: string
+        status:
+          type: string
+        provider:
+          type: string
+        provider_label:
+          type: string
+        amount_minor:
+          type: integer
+        currency:
+          type: string
+        checkout_url:
+          type: string
+          nullable: true
+      required:
+      - amount_minor
+      - booking_id
+      - booking_status
+      - checkout_url
+      - currency
+      - id
+      - provider
+      - provider_label
+      - status
+    PaymentWebhookResult:
+      type: object
+      properties:
+        duplicate:
+          type: boolean
+        result:
+          type: string
+      required:
+      - duplicate
+      - result
     PricingTypeEnum:
       enum:
       - fixed
@@ -1938,6 +2332,46 @@ components:
       - name
       - rating
       - slug
+    RefundCreate:
+      type: object
+      properties:
+        payment_id:
+          type: string
+          format: uuid
+        amount_minor:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          maxLength: 250
+      required:
+      - amount_minor
+      - payment_id
+      - reason
+    RefundOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        payment_id:
+          type: string
+          format: uuid
+        amount_minor:
+          type: integer
+        currency:
+          type: string
+        status:
+          type: string
+        provider_reference:
+          type: string
+      required:
+      - amount_minor
+      - currency
+      - id
+      - payment_id
+      - provider_reference
+      - status
     Register:
       type: object
       properties:
@@ -1954,6 +2388,13 @@ components:
       required:
       - email
       - password
+    SandboxOutcome:
+      type: object
+      properties:
+        outcome:
+          $ref: '#/components/schemas/OutcomeEnum'
+      required:
+      - outcome
     UserMe:
       type: object
       properties:

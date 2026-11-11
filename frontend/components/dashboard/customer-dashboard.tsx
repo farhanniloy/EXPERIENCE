@@ -41,7 +41,10 @@ export function CustomerDashboard() {
       <main className="min-h-screen bg-[#F7F5F0] px-4 py-12 text-[#20201F] sm:px-6">
         <div className="mx-auto max-w-5xl">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#75404A]">Customer dashboard</p>
-          <h1 className="mt-3 text-3xl font-semibold">{workflowCopy.customerDashboardTitle}</h1>
+          <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
+            <h1 className="text-3xl font-semibold">{workflowCopy.customerDashboardTitle}</h1>
+            <Link href="/messages" className="text-sm font-medium text-[#75404A]">{workflowCopy.messagesInboxTitle}</Link>
+          </div>
           {data ? <p className="mt-2 text-sm text-[#77736D]">Welcome, {data.display_name || "there"}.</p> : null}
           {error ? (
             <section className="mt-8 rounded-2xl border border-[#E8E4DC] bg-white p-6">

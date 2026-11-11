@@ -219,10 +219,14 @@ class ModerationQueueItem(UUIDModel, TimestampedModel):
         PROFILE_CONTENT = "profile_content", "Host profile content"
         FIRST_LISTING = "first_listing", "First listing"
         LISTING_CONTENT = "listing_content", "Listing content"
+        MESSAGE_CONTENT = "message_content", "Message content"
 
     host = models.ForeignKey(HostProfile, on_delete=models.CASCADE, related_name="moderation_items")
     experience = models.ForeignKey(
         Experience, on_delete=models.CASCADE, null=True, blank=True, related_name="moderation_items"
+    )
+    message = models.ForeignKey(
+        "Message", on_delete=models.CASCADE, null=True, blank=True, related_name="moderation_items"
     )
     queue_type = models.CharField(max_length=24, choices=QueueType.choices)
     flagged_fields = models.JSONField(default=dict, blank=True)
@@ -337,6 +341,7 @@ class PaymentTransaction(UUIDModel, TimestampedModel):
         FAILED = "failed", "Failed"
         AUTHORIZED = "authorized", "Authorized"
         CAPTURED = "captured", "Captured"
+        EXPIRED = "expired", "Expired"
         REFUNDED = "refunded", "Refunded"
         PARTIALLY_REFUNDED = "partially_refunded", "Partially refunded"
 
@@ -372,7 +377,69 @@ class Payout(UUIDModel, TimestampedModel):
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
 
     class Meta:
-        constraints = [models.CheckConstraint(condition=Q(amount_minor__gte=0), name="payout_amount_nonnegative")]
+        constraints = [
+            models.CheckConstraint(condition=Q(amount_minor__gte=0), name="payout_amount_nonnegative"),
+            models.UniqueConstraint(fields=["booking"], name="payout_booking_unique"),
+        ]
+
+
+class Refund(UUIDModel, TimestampedModel):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        PROCESSED = "processed", "Processed"
+        FAILED = "failed", "Failed"
+
+    payment = models.ForeignKey(PaymentTransaction, on_delete=models.PROTECT, related_name="refunds")
+    amount_minor = models.PositiveBigIntegerField()
+    currency = models.CharField(max_length=3, validators=[currency_code_validator])
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
+    reason = models.CharField(max_length=250)
+    idempotency_key = models.CharField(max_length=128, unique=True)
+    provider_reference = models.CharField(max_length=180, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="refunds_created"
+    )
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=Q(amount_minor__gt=0), name="refund_amount_positive"),
+        ]
+        indexes = [models.Index(fields=["payment", "created_at"])]
+
+
+class PaymentWebhookEvent(UUIDModel):
+    provider = models.CharField(max_length=60)
+    event_id = models.CharField(max_length=180)
+    payment = models.ForeignKey(
+        PaymentTransaction, on_delete=models.PROTECT, null=True, blank=True, related_name="webhook_events"
+    )
+    payload = models.JSONField()
+    result = models.CharField(max_length=24, default="received")
+    received_at = models.DateTimeField(default=timezone.now, editable=False)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["provider", "event_id"], name="payment_webhook_event_unique"),
+        ]
+
+
+class TransactionalOutbox(UUIDModel):
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="outbox_events"
+    )
+    event_type = models.CharField(max_length=60)
+    aggregate_type = models.CharField(max_length=60)
+    aggregate_id = models.CharField(max_length=64)
+    payload = models.JSONField(default=dict, blank=True)
+    idempotency_key = models.CharField(max_length=180, unique=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    last_error = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(default=timezone.now, editable=False, db_index=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["processed_at", "created_at"])]
 
 
 class Conversation(UUIDModel, TimestampedModel):
@@ -380,12 +447,20 @@ class Conversation(UUIDModel, TimestampedModel):
 
 
 class Message(UUIDModel):
+    class ModerationStatus(models.TextChoices):
+        VISIBLE = "visible", "Visible"
+        PENDING = "pending", "Pending moderation"
+        REMOVED = "removed", "Removed"
+
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name="messages")
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="messages")
     body = models.TextField(max_length=5000)
     created_at = models.DateTimeField(default=timezone.now, editable=False, db_index=True)
     read_at = models.DateTimeField(null=True, blank=True)
     flagged = models.BooleanField(default=False)
+    moderation_status = models.CharField(
+        max_length=12, choices=ModerationStatus.choices, default=ModerationStatus.VISIBLE
+    )
 
     class Meta:
         indexes = [models.Index(fields=["conversation", "created_at"])]

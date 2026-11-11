@@ -40,6 +40,19 @@ from .booking_views import (
     MyAvailabilityView,
     PublicExperienceAvailabilityView,
 )
+from .messaging_views import (
+    BlockUserView,
+    ConversationListView,
+    ConversationMessageListCreateView,
+    ConversationReadView,
+)
+from .payment_views import (
+    BookingPaymentCreateView,
+    PaymentDetailView,
+    PaymentWebhookView,
+    RefundCreateView,
+    SandboxPaymentCompleteView,
+)
 
 urlpatterns = [
     path("auth/csrf", CsrfTokenView.as_view(), name="auth-csrf"),
@@ -82,7 +95,28 @@ urlpatterns = [
     path("bookings", BookingListCreateView.as_view(), name="booking-list-create"),
     path("bookings/<uuid:booking_id>", BookingDetailView.as_view(), name="booking-detail"),
     path("bookings/<uuid:booking_id>/events", BookingEventListView.as_view(), name="booking-events"),
+    path("bookings/<uuid:booking_id>/payment", BookingPaymentCreateView.as_view(), name="booking-payment"),
     path("bookings/<uuid:booking_id>/<str:action>", BookingActionView.as_view(), name="booking-action"),
+    path("payments/refunds", RefundCreateView.as_view(), name="payment-refunds"),
+    path("payments/<uuid:payment_id>", PaymentDetailView.as_view(), name="payment-detail"),
+    path(
+        "payments/<uuid:payment_id>/sandbox-complete",
+        SandboxPaymentCompleteView.as_view(),
+        name="sandbox-payment-complete",
+    ),
+    path("webhooks/payments/<str:provider>", PaymentWebhookView.as_view(), name="payment-webhook"),
+    path("conversations", ConversationListView.as_view(), name="conversation-list"),
+    path(
+        "conversations/<uuid:conversation_id>/messages",
+        ConversationMessageListCreateView.as_view(),
+        name="conversation-messages",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/read",
+        ConversationReadView.as_view(),
+        name="conversation-read",
+    ),
+    path("users/<uuid:user_id>/block", BlockUserView.as_view(), name="user-block"),
     path("experiences/manage", ManagedExperienceListView.as_view(), name="experience-manage-list"),
     path(
         "experiences/manage/<uuid:experience_id>",

@@ -30,6 +30,7 @@ from .moderation import (
     queue_host_application,
     queue_profile_content,
 )
+from .notifications import enqueue_email
 from .services import (
     apply_moderation_decision,
     deactivate_experience,
@@ -322,6 +323,14 @@ class CompanionApplicationView(APIView):
         host.country_code = COUNTRY_CODE
         host.save()
         queue_host_application(host, flag_host_profile(host))
+        enqueue_email(
+            request.user,
+            "application_status",
+            "host_application",
+            host.pk,
+            {"status": host.status},
+            key=f"application_status:{host.pk}:{host.status}:{host.updated_at.isoformat()}",
+        )
         return Response(serialize_host(account, host), status=status.HTTP_202_ACCEPTED)
 
 
@@ -344,7 +353,7 @@ class DevelopmentAgeVerificationView(APIView):
             raise PermissionDenied("The development verification adapter is disabled.")
         if request.data.get("confirmed_18") is not True:
             raise ValidationError({"confirmed_18": "Confirm that you are at least 18 years old."})
-        VerificationCheck.objects.update_or_create(
+        check, _ = VerificationCheck.objects.update_or_create(
             user=request.user,
             check_type=VerificationCheck.CheckType.AGE,
             provider="development_mock",
@@ -354,6 +363,14 @@ class DevelopmentAgeVerificationView(APIView):
                 "expires_at": timezone.now() + timedelta(days=365),
                 "metadata": {"simulation": True, "adult_self_confirmation": True},
             },
+        )
+        enqueue_email(
+            request.user,
+            "verification_status",
+            "verification",
+            check.pk,
+            {"status": check.status},
+            key=f"verification_status:{check.pk}:{check.updated_at.isoformat()}",
         )
         return Response(
             {
@@ -567,7 +584,7 @@ class ModerationQueueView(APIView):
     @extend_schema(responses=ModerationItemOutputSerializer(many=True))
     def get(self, request):
         items = ModerationQueueItem.objects.filter(status=ModerationQueueItem.Status.PENDING).select_related(
-            "host__user__along_account", "experience"
+            "host__user__along_account", "experience", "message"
         ).order_by("created_at")
         return Response(
             [
@@ -575,18 +592,22 @@ class ModerationQueueView(APIView):
                     "id": str(item.id),
                     "queue_type": item.queue_type,
                     "flagged_fields": item.flagged_fields,
-                    "content": {
-                        field: (
-                            getattr(item.experience, field, "")
-                            if item.experience_id and field != "photos"
-                            else "\n".join(item.experience.media.values_list("object_key", flat=True))
-                            if item.experience_id
-                            else "\n".join(item.host.photos)
-                            if field == "photos"
-                            else getattr(item.host, field, "")
-                        )
-                        for field in item.flagged_fields
-                    },
+                    "content": (
+                        {"body": item.message.body}
+                        if item.message_id
+                        else {
+                            field: (
+                                getattr(item.experience, field, "")
+                                if item.experience_id and field != "photos"
+                                else "\n".join(item.experience.media.values_list("object_key", flat=True))
+                                if item.experience_id
+                                else "\n".join(item.host.photos)
+                                if field == "photos"
+                                else getattr(item.host, field, "")
+                            )
+                            for field in item.flagged_fields
+                        }
+                    ),
                     "host": item.host.user.along_account.display_name,
                     "host_slug": item.host.slug,
                     "host_status": item.host.status,
@@ -619,4 +640,13 @@ class ModerationReviewView(APIView):
             status=ModerationQueueItem.Status.PENDING,
         )
         item = apply_moderation_decision(item, action, request.user)
+        if item.queue_type == ModerationQueueItem.QueueType.HOST_APPLICATION:
+            enqueue_email(
+                item.host.user,
+                "application_status",
+                "host_application",
+                item.host.pk,
+                {"status": item.host.status},
+                key=f"application_status:{item.host.pk}:{item.host.status}:{item.updated_at.isoformat()}",
+            )
         return Response({"status": item.status})

@@ -14,6 +14,8 @@ from rest_framework.exceptions import ValidationError as APIValidationError
 from .models import (
     Booking,
     BookingEvent,
+    Block,
+    Conversation,
     Experience,
     HostProfile,
     ModerationQueueItem,
@@ -22,6 +24,7 @@ from .models import (
 )
 from .availability import is_slot_available
 from .moderation import flag_experience, queue_listing_review
+from .notifications import enqueue_email
 
 
 class BookingSlotUnavailable(ValidationError):
@@ -86,7 +89,20 @@ def apply_moderation_decision(item, action, reviewer):
         raise APIValidationError({"action": "Choose approve or reject."})
     if item.status != ModerationQueueItem.Status.PENDING:
         raise APIValidationError("This moderation item has already been reviewed.")
-    if action == "approve":
+    if item.message_id:
+        item.message.moderation_status = (
+            item.message.ModerationStatus.VISIBLE
+            if action == "approve"
+            else item.message.ModerationStatus.REMOVED
+        )
+        item.message.flagged = action == "reject"
+        item.message.save(update_fields=["moderation_status", "flagged"])
+        item.status = (
+            ModerationQueueItem.Status.APPROVED
+            if action == "approve"
+            else ModerationQueueItem.Status.REJECTED
+        )
+    elif action == "approve":
         if item.experience_id:
             if item.host.status != HostProfile.Status.APPROVED:
                 raise APIValidationError("Approve the host application before approving its listing.")
@@ -117,7 +133,9 @@ def apply_moderation_decision(item, action, reviewer):
 
 @transaction.atomic
 def transition_booking(booking_id, next_status, actor=None, metadata=None):
-    booking = Booking.objects.select_for_update().get(pk=booking_id)
+    booking = Booking.objects.select_for_update().select_related(
+        "customer", "host__user", "experience"
+    ).get(pk=booking_id)
     if next_status not in ALLOWED_BOOKING_TRANSITIONS.get(booking.status, set()):
         raise ValidationError(f"Booking cannot transition from {booking.status} to {next_status}.")
 
@@ -136,6 +154,20 @@ def transition_booking(booking_id, next_status, actor=None, metadata=None):
         new_state=next_status,
         metadata=metadata or {},
     )
+    if next_status in {Booking.Status.CONFIRMED, Booking.Status.CANCELLED, Booking.Status.DECLINED}:
+        event_type = {
+            Booking.Status.CONFIRMED: "booking_confirmed",
+            Booking.Status.CANCELLED: "booking_cancelled",
+            Booking.Status.DECLINED: "booking_declined",
+        }[next_status]
+        for recipient in (booking.customer, booking.host.user):
+            enqueue_email(
+                recipient,
+                event_type,
+                "booking",
+                booking.pk,
+                {"title": booking.snapshot.get("title", booking.experience.title)},
+            )
     return booking
 
 
@@ -150,7 +182,9 @@ def _schedule_hold_expiry(booking):
 
 def _expire_due_holds(host):
     now = timezone.now()
-    due_holds = Booking.objects.select_for_update().filter(
+    due_holds = Booking.objects.select_for_update().select_related(
+        "customer", "host__user", "experience"
+    ).filter(
         host=host,
         status=Booking.Status.AWAITING_PAYMENT,
         payment_deadline__lte=now,
@@ -167,6 +201,22 @@ def _expire_due_holds(host):
             new_state=booking.status,
             metadata={"reason": "payment_hold_expired"},
         )
+        for recipient in (booking.customer, booking.host.user):
+            enqueue_email(
+                recipient,
+                "payment_failed",
+                "booking",
+                booking.pk,
+                {"title": booking.snapshot.get("title", booking.experience.title)},
+            )
+        for recipient in (booking.customer, booking.host.user):
+            enqueue_email(
+                recipient,
+                "payment_failed",
+                "booking",
+                booking.pk,
+                {"title": booking.snapshot.get("title", booking.experience.title)},
+            )
 
 
 @transaction.atomic
@@ -199,6 +249,11 @@ def create_booking(
         raise ValidationError("The experience does not belong to this host.")
     if host.user_id == customer.pk:
         raise ValidationError("Hosts cannot book their own experiences.")
+    if Block.objects.filter(
+        Q(blocker_id=customer.pk, blocked_id=host.user_id)
+        | Q(blocker_id=host.user_id, blocked_id=customer.pk)
+    ).exists():
+        raise ValidationError("This host is unavailable for booking.")
     if host.status != HostProfile.Status.APPROVED:
         raise ValidationError("Only approved hosts can receive bookings.")
     if experience.status != Experience.Status.PUBLISHED:
@@ -247,6 +302,11 @@ def create_booking(
         raise ValidationError("This experience is no longer available for booking.")
     if not User.objects.filter(auth_user=customer, status=User.Status.ACTIVE).exists():
         raise ValidationError("This account cannot create bookings.")
+    if Block.objects.filter(
+        Q(blocker_id=customer.pk, blocked_id=locked_host.user_id)
+        | Q(blocker_id=locked_host.user_id, blocked_id=customer.pk)
+    ).exists():
+        raise ValidationError("This host is unavailable for booking.")
     if not is_slot_available(
         locked_host,
         locked_experience,
@@ -315,6 +375,14 @@ def create_booking(
         new_state=booking.status,
         metadata={"booking_mode": booking_mode},
     )
+    Conversation.objects.get_or_create(booking=booking)
+    enqueue_email(
+        locked_host.user,
+        "booking_request",
+        "booking",
+        booking.pk,
+        {"title": locked_experience.title},
+    )
     if payment_deadline:
         _schedule_hold_expiry(booking)
     return booking
@@ -344,17 +412,17 @@ def accept_booking(booking_id, actor):
         exclude_booking_id=booking.pk,
     ):
         raise BookingSlotUnavailable("This time is no longer available.")
-    booking.status = Booking.Status.AWAITING_PAYMENT
     booking.payment_deadline = timezone.now() + timedelta(
         minutes=getattr(settings, "BOOKING_HOLD_MINUTES", 15)
     )
-    booking.save(update_fields=["status", "payment_deadline", "updated_at"])
-    BookingEvent.objects.create(
-        booking=booking,
-        actor=actor,
-        event_type="status_changed",
-        previous_state=Booking.Status.REQUESTED,
-        new_state=booking.status,
+    booking.save(update_fields=["payment_deadline", "updated_at"])
+    booking = transition_booking(booking.pk, Booking.Status.AWAITING_PAYMENT, actor=actor)
+    enqueue_email(
+        booking.customer,
+        "booking_accepted",
+        "booking",
+        booking.pk,
+        {"title": booking.snapshot.get("title", booking.experience.title)},
     )
     _schedule_hold_expiry(booking)
     return booking

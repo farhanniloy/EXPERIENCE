@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlparse
 
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.core.exceptions import ImproperlyConfigured
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, connections
 from django.test import TransactionTestCase, override_settings
@@ -18,14 +19,24 @@ from .models import (
     AvailabilityRule,
     Booking,
     Category,
+    Conversation,
     Experience,
     HostProfile,
     ModerationQueueItem,
+    NotificationRecord,
+    PaymentTransaction,
+    PaymentWebhookEvent,
+    Payout,
+    Refund,
+    TransactionalOutbox,
     User,
     VerificationCheck,
 )
 from .services import BookingSlotUnavailable, create_booking, transition_booking
 from .permissions import IsBookingParty
+from .notifications import enqueue_email
+from .payments import SandboxPaymentAdapter, get_payment_adapter
+from .tasks import deliver_outbox_event
 
 
 class PlatformAPITests(APITestCase):
@@ -630,6 +641,323 @@ class PlatformAPITests(APITestCase):
             public_venue_name="Dhaka public cinema",
         )
         self.assertEqual(repeated.pk, booking.pk)
+
+    @override_settings(
+        DEBUG=True,
+        APP_ENV="development",
+        PAYMENTS_PROVIDER="sandbox",
+        PAYMENT_WEBHOOK_SECRET="test-payment-signing-key",
+    )
+    def test_payment_creation_is_idempotent_and_browser_get_cannot_confirm_booking(self):
+        booking = self._make_payable_booking()
+        self.client.force_authenticate(self.customer.auth_user)
+        path = f"/api/v1/bookings/{booking.pk}/payment"
+        first = self.client.post(
+            path, {}, format="json", HTTP_IDEMPOTENCY_KEY="payment-idempotency-1"
+        )
+        self.assertEqual(first.status_code, 201, first.data)
+        duplicate = self.client.post(
+            path, {}, format="json", HTTP_IDEMPOTENCY_KEY="payment-idempotency-1"
+        )
+        self.assertEqual(duplicate.status_code, 201, duplicate.data)
+        self.assertEqual(first.data["id"], duplicate.data["id"])
+        self.assertEqual(PaymentTransaction.objects.filter(booking=booking).count(), 1)
+        self.assertIn("development only", first.data["provider_label"])
+
+        redirect_result = self.client.get(
+            f"/api/v1/payments/{first.data['id']}/sandbox-complete?outcome=success"
+        )
+        payment_status = self.client.get(f"/api/v1/payments/{first.data['id']}")
+        booking.refresh_from_db()
+        self.assertEqual(redirect_result.status_code, 405)
+        self.assertEqual(payment_status.data["status"], PaymentTransaction.Status.PENDING)
+        self.assertEqual(booking.status, Booking.Status.AWAITING_PAYMENT)
+
+    @override_settings(
+        DEBUG=True,
+        APP_ENV="development",
+        PAYMENTS_PROVIDER="sandbox",
+        PAYMENT_WEBHOOK_SECRET="test-payment-signing-key",
+    )
+    def test_signed_webhook_confirms_only_after_authorization_and_is_replay_safe(self):
+        booking = self._make_payable_booking()
+        self.client.force_authenticate(self.customer.auth_user)
+        initiated = self.client.post(
+            f"/api/v1/bookings/{booking.pk}/payment",
+            {},
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="payment-webhook-initiate",
+        )
+        self.assertEqual(initiated.status_code, 201, initiated.data)
+        payment = PaymentTransaction.objects.get(pk=initiated.data["id"])
+
+        invalid_capture = self._post_payment_webhook(payment, "capture-before-auth", "captured")
+        self.assertEqual(invalid_capture.data["result"], "invalid_transition")
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, Booking.Status.AWAITING_PAYMENT)
+
+        authorized = self._post_payment_webhook(payment, "payment-authorized", "authorized")
+        self.assertEqual(authorized.status_code, 200)
+        captured = self._post_payment_webhook(payment, "payment-captured", "captured")
+        self.assertEqual(captured.data["result"], "captured")
+        replay = self._post_payment_webhook(payment, "payment-captured", "captured")
+        self.assertTrue(replay.data["duplicate"])
+
+        booking.refresh_from_db()
+        payment.refresh_from_db()
+        self.assertEqual(booking.status, Booking.Status.CONFIRMED)
+        self.assertEqual(payment.status, PaymentTransaction.Status.CAPTURED)
+        self.assertEqual(Payout.objects.filter(booking=booking).count(), 1)
+        self.assertEqual(PaymentWebhookEvent.objects.filter(payment=payment).count(), 3)
+
+        payload = {
+            "event_id": "invalid-signature",
+            "provider_reference": payment.provider_reference,
+            "status": "captured",
+            "amount_minor": payment.amount_minor,
+            "currency": payment.currency,
+        }
+        raw_body, _ = SandboxPaymentAdapter().signed_event(payload)
+        rejected = self.client.generic(
+            "POST",
+            "/api/v1/webhooks/payments/sandbox",
+            data=raw_body,
+            content_type="application/json",
+            HTTP_X_PAYMENT_SIGNATURE="not-a-valid-signature",
+        )
+        self.assertEqual(rejected.status_code, 400)
+
+    @override_settings(
+        DEBUG=True,
+        APP_ENV="development",
+        PAYMENTS_PROVIDER="sandbox",
+        PAYMENT_WEBHOOK_SECRET="test-payment-signing-key",
+    )
+    def test_sandbox_failure_and_expiry_release_only_the_expired_booking(self):
+        booking = self._make_payable_booking()
+        self.client.force_authenticate(self.customer.auth_user)
+        started = self.client.post(
+            f"/api/v1/bookings/{booking.pk}/payment",
+            {},
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="payment-expiry-initiate",
+        )
+        self.assertEqual(started.status_code, 201)
+        failed = self.client.post(
+            f"/api/v1/payments/{started.data['id']}/sandbox-complete",
+            {"outcome": "failure"},
+            format="json",
+        )
+        self.assertEqual(failed.status_code, 200)
+        self.assertEqual(failed.data["status"], PaymentTransaction.Status.FAILED)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, Booking.Status.AWAITING_PAYMENT)
+
+        retry = self.client.post(
+            f"/api/v1/bookings/{booking.pk}/payment",
+            {},
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="payment-expiry-retry",
+        )
+        self.assertEqual(retry.status_code, 201)
+        expired = self.client.post(
+            f"/api/v1/payments/{retry.data['id']}/sandbox-complete",
+            {"outcome": "expiry"},
+            format="json",
+        )
+        self.assertEqual(expired.data["status"], PaymentTransaction.Status.EXPIRED)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, Booking.Status.EXPIRED)
+
+    @override_settings(
+        DEBUG=True,
+        APP_ENV="development",
+        PAYMENTS_PROVIDER="sandbox",
+        PAYMENT_WEBHOOK_SECRET="test-payment-signing-key",
+    )
+    def test_refunds_are_staff_only_idempotent_and_reverse_payout_records(self):
+        booking, payment = self._capture_booking_payment("refund-payment")
+        self.client.force_authenticate(self.customer.auth_user)
+        payload = {
+            "payment_id": str(payment.pk),
+            "amount_minor": 500,
+            "reason": "Approved customer refund",
+        }
+        denied = self.client.post(
+            "/api/v1/payments/refunds",
+            payload,
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="refund-key-1",
+        )
+        self.assertEqual(denied.status_code, 403)
+
+        staff_user = get_user_model().objects.create_user(
+            username="finance-staff", email="finance-staff@example.test", password="Along-Staff-Password-391!", is_staff=True
+        )
+        self.client.force_authenticate(staff_user)
+        first = self.client.post(
+            "/api/v1/payments/refunds",
+            payload,
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="refund-key-1",
+        )
+        second = self.client.post(
+            "/api/v1/payments/refunds",
+            payload,
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="refund-key-1",
+        )
+        self.assertEqual(first.status_code, 201, first.data)
+        self.assertEqual(first.data["id"], second.data["id"])
+        self.assertEqual(Refund.objects.filter(payment=payment).count(), 1)
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, PaymentTransaction.Status.PARTIALLY_REFUNDED)
+        self.assertEqual(Payout.objects.get(booking=booking).status, Payout.Status.REVERSED)
+
+    @override_settings(DEBUG=False, APP_ENV="production", PAYMENTS_PROVIDER="sandbox")
+    def test_sandbox_adapter_refuses_production_settings(self):
+        with self.assertRaises(ImproperlyConfigured):
+            get_payment_adapter("sandbox")
+
+    def test_conversations_enforce_membership_read_state_and_blocking(self):
+        booking = self._create_booking()
+        conversation = Conversation.objects.create(booking=booking)
+        other = User.objects.create_user(
+            "conversation-outsider@example.test",
+            "Along-Conversation-Password-391!",
+            display_name="Conversation Outsider",
+        )
+
+        self.client.force_authenticate(other.auth_user)
+        self.assertEqual(
+            self.client.get(f"/api/v1/conversations/{conversation.pk}/messages").status_code,
+            404,
+        )
+        self.assertEqual(self.client.get("/api/v1/conversations").data, [])
+
+        self.client.force_authenticate(self.customer.auth_user)
+        created = self.client.post(
+            f"/api/v1/conversations/{conversation.pk}/messages",
+            {"body": "I will meet you by the museum entrance."},
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(created.data["moderation_status"], "visible")
+        self.client.force_authenticate(self.host_user.auth_user)
+        inbox = self.client.get("/api/v1/conversations")
+        self.assertEqual(inbox.data[0]["unread_count"], 1)
+        messages = self.client.get(f"/api/v1/conversations/{conversation.pk}/messages")
+        self.assertEqual(messages.data[0]["body"], "I will meet you by the museum entrance.")
+        marked = self.client.post(f"/api/v1/conversations/{conversation.pk}/read", {}, format="json")
+        self.assertEqual(marked.data["marked_read"], 1)
+        self.assertEqual(self.client.get("/api/v1/conversations").data[0]["unread_count"], 0)
+
+        self.client.force_authenticate(self.customer.auth_user)
+        blocked = self.client.post(
+            f"/api/v1/users/{self.host_user.id}/block", {}, format="json"
+        )
+        self.assertEqual(blocked.status_code, 201)
+        prevented = self.client.post(
+            f"/api/v1/conversations/{conversation.pk}/messages",
+            {"body": "This message should not be sent."},
+            format="json",
+        )
+        self.assertEqual(prevented.status_code, 400)
+
+    def test_flagged_messages_are_hidden_and_sent_to_moderation(self):
+        booking = self._create_booking()
+        conversation = Conversation.objects.create(booking=booking)
+        self.client.force_authenticate(self.customer.auth_user)
+        flagged = self.client.post(
+            f"/api/v1/conversations/{conversation.pk}/messages",
+            {"body": "Contact me on WhatsApp at 01712345678"},
+            format="json",
+        )
+        self.assertEqual(flagged.status_code, 201, flagged.data)
+        self.assertEqual(flagged.data["moderation_status"], "pending")
+        self.client.force_authenticate(self.host_user.auth_user)
+        hidden = self.client.get(f"/api/v1/conversations/{conversation.pk}/messages")
+        self.assertEqual(hidden.data[0]["body"], "")
+
+        moderator = get_user_model().objects.create_user(
+            username="message-moderator",
+            email="message-moderator@example.test",
+            password="Along-Moderator-Password-391!",
+            is_staff=True,
+        )
+        self.client.force_authenticate(moderator)
+        queue = self.client.get("/api/v1/admin/moderation")
+        item = next(entry for entry in queue.data if entry["queue_type"] == "message_content")
+        self.assertEqual(item["content"]["body"], "Contact me on WhatsApp at 01712345678")
+        review = self.client.post(
+            f"/api/v1/admin/moderation/{item['id']}",
+            {"action": "approve"},
+            format="json",
+        )
+        self.assertEqual(review.status_code, 200)
+        self.client.force_authenticate(self.host_user.auth_user)
+        visible = self.client.get(f"/api/v1/conversations/{conversation.pk}/messages")
+        self.assertEqual(visible.data[0]["body"], "Contact me on WhatsApp at 01712345678")
+
+    def test_transactional_outbox_delivers_email_once(self):
+        event = enqueue_email(
+            self.customer.auth_user,
+            "booking_confirmed",
+            "booking",
+            "outbox-test-booking",
+            {"title": "Museum visit"},
+            key="outbox-test-booking-confirmed",
+        )
+        self.assertEqual(TransactionalOutbox.objects.filter(pk=event.pk).count(), 1)
+        self.assertTrue(deliver_outbox_event.run(str(event.pk)))
+        self.assertFalse(deliver_outbox_event.run(str(event.pk)))
+        event.refresh_from_db()
+        self.assertIsNotNone(event.processed_at)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(NotificationRecord.objects.filter(user=self.customer.auth_user).count(), 1)
+
+    def _make_payable_booking(self):
+        booking = self._create_booking()
+        booking.status = Booking.Status.AWAITING_PAYMENT
+        booking.payment_deadline = timezone.now() + timedelta(minutes=15)
+        booking.save(update_fields=["status", "payment_deadline", "updated_at"])
+        return booking
+
+    def _signed_event_post(self, payload, signature=None):
+        adapter = SandboxPaymentAdapter()
+        raw_body, signed = adapter.signed_event(payload)
+        return self.client.generic(
+            "POST",
+            "/api/v1/webhooks/payments/sandbox",
+            data=raw_body,
+            content_type="application/json",
+            HTTP_X_PAYMENT_SIGNATURE=signature or signed,
+        )
+
+    def _post_payment_webhook(self, payment, event_id, provider_status):
+        return self._signed_event_post({
+            "event_id": event_id,
+            "provider_reference": payment.provider_reference,
+            "status": provider_status,
+            "amount_minor": payment.amount_minor,
+            "currency": payment.currency,
+        })
+
+    def _capture_booking_payment(self, key_prefix):
+        booking = self._make_payable_booking()
+        self.client.force_authenticate(self.customer.auth_user)
+        response = self.client.post(
+            f"/api/v1/bookings/{booking.pk}/payment",
+            {},
+            format="json",
+            HTTP_IDEMPOTENCY_KEY=f"{key_prefix}-init",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        payment = PaymentTransaction.objects.get(pk=response.data["id"])
+        self._post_payment_webhook(payment, f"{key_prefix}-auth", "authorized")
+        self._post_payment_webhook(payment, f"{key_prefix}-capture", "captured")
+        payment.refresh_from_db()
+        return booking, payment
 
     def _create_booking(self):
         from .models import Booking

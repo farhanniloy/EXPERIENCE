@@ -108,6 +108,8 @@ class BookingActionRequestSerializer(serializers.Serializer):
 
 class BookingOutputSerializer(serializers.Serializer):
     id = serializers.UUIDField()
+    conversation_id = serializers.UUIDField(allow_null=True)
+    other_party_user_id = serializers.UUIDField(allow_null=True)
     status = serializers.CharField()
     start_at = serializers.DateTimeField()
     end_at = serializers.DateTimeField()
@@ -139,6 +141,10 @@ def _serialize_booking(booking, user):
     snapshot_name = booking.snapshot.get("customer_name" if host_view else "host_name")
     return {
         "id": booking.id,
+        "conversation_id": getattr(booking, "conversation", None).id
+        if hasattr(booking, "conversation")
+        else None,
+        "other_party_user_id": other_party_account.id if other_party_account else None,
         "status": booking.status,
         "start_at": booking.start_at,
         "end_at": booking.end_at,
@@ -159,6 +165,7 @@ def _booking_queryset():
         "experience",
         "host__user__along_account",
         "customer__along_account",
+        "conversation",
     )
 
 

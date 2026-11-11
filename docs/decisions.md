@@ -58,5 +58,23 @@ remains the final guard against overlapping active reservations.
 Instant-booking holds default to 15 minutes and expire through a Celery task.
 Expired holds are also cleared when a new booking or host acceptance checks
 availability, so a delayed worker does not keep a slot unavailable. This
-stage records the hold and booking state only; payment processing is not
-implemented, and no booking is confirmed by a browser redirect.
+stage records the hold and booking state only; at that point payment processing
+was not implemented, and no booking was confirmed by a browser redirect.
+
+## 8. Payments, messaging, and notifications
+Payments use a provider adapter with a development-only sandbox implementation.
+The sandbox supports success, failure, and expiry simulations, but does not move
+money and refuses to initialize in production. A booking is confirmed only
+after a verified provider capture webhook; browser redirects and sandbox
+checkout-page loads do not confirm payment. Webhook event IDs and payment
+initiation idempotency keys prevent duplicate processing. Refunds and payouts
+are recorded as domain records; sandbox refunds are simulations, not money
+movement. Production launch requires a real provider adapter and its
+credentials and webhook signing secret.
+
+Booking conversations are restricted to the booking's customer and host.
+Messages support read status and unread counts, enforce blocks and rate limits,
+and route suspected solicitation or off-platform contact to staff moderation.
+Email notifications are written to a transactional outbox with their domain
+operation and delivered asynchronously by Celery. Booking reminders are
+scheduled for 24 hours before the confirmed start time.

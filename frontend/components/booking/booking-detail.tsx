@@ -1,15 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { Nav } from "@/components/layout/nav";
 import { ApiError, apiRequest, jsonBody } from "@/lib/api-client";
+import { ConversationPanel } from "@/components/booking/conversation-panel";
 import { formatPrice } from "@/lib/currency";
 import { workflowCopy } from "@/lib/workflow-copy";
 
 type Booking = {
   id: string;
+  conversation_id: string | null;
+  other_party_user_id: string | null;
   status: string;
   start_at: string;
   end_at: string;
@@ -30,12 +34,18 @@ type BookingEvent = {
   created_at: string;
 };
 type Action = "accept" | "decline" | "cancel" | "start" | "complete";
+type Payment = { id: string; provider: string; checkout_url: string | null };
 
 export function BookingDetail({ bookingId }: { bookingId: string }) {
+  const router = useRouter();
   const [booking, setBooking] = useState<Booking | null>(null);
   const [events, setEvents] = useState<BookingEvent[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const [blockBusy, setBlockBusy] = useState(false);
+  const paymentKey = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -75,6 +85,46 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
       setError(reason instanceof Error ? reason.message : workflowCopy.bookingActionError);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function pay() {
+    if (!booking) return;
+    setPaymentBusy(true);
+    setError("");
+    paymentKey.current ??= crypto.randomUUID();
+    try {
+      const payment = await apiRequest<Payment>(`bookings/${bookingId}/payment`, {
+        method: "POST",
+        headers: { "Idempotency-Key": paymentKey.current },
+        body: jsonBody({}),
+      });
+      paymentKey.current = null;
+      if (payment.provider !== "sandbox" || payment.checkout_url !== `/payments/sandbox/${payment.id}`) {
+        throw new Error(workflowCopy.paymentLoadError);
+      }
+      router.push(payment.checkout_url);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : workflowCopy.paymentActionError);
+    } finally {
+      setPaymentBusy(false);
+    }
+  }
+
+  async function blockParticipant() {
+    if (!booking?.other_party_user_id) return;
+    setBlockBusy(true);
+    setError("");
+    try {
+      await apiRequest(`users/${booking.other_party_user_id}/block`, {
+        method: "POST",
+        body: jsonBody({}),
+      });
+      setBlocked(true);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : workflowCopy.bookingBlockError);
+    } finally {
+      setBlockBusy(false);
     }
   }
 
@@ -139,7 +189,17 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
                   {workflowCopy.bookingPaymentLimitation}
                 </p>
               ) : null}
+              {booking.status === "confirmed" ? (
+                <p role="status" className="mt-6 rounded-xl bg-[#F7F5F0] p-4 text-sm text-[#526044]">
+                  {workflowCopy.bookingConfirmSuccess}
+                </p>
+              ) : null}
               <div className="mt-6 flex flex-wrap gap-3">
+                {!hostView && booking.status === "awaiting_payment" ? (
+                  <button type="button" disabled={paymentBusy} onClick={() => void pay()} className="h-11 rounded-full bg-[#75404A] px-5 text-sm font-medium text-white disabled:opacity-50">
+                    {paymentBusy ? workflowCopy.paymentLoading : workflowCopy.bookingPayNow}
+                  </button>
+                ) : null}
                 {hostView && booking.status === "requested" ? (
                   <>
                     <button type="button" disabled={busy} onClick={() => void act("accept")} className="h-11 rounded-full bg-[#75404A] px-5 text-sm font-medium text-white disabled:opacity-50">{workflowCopy.bookingAccept}</button>
@@ -155,7 +215,14 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
                 {canCancel ? (
                   <button type="button" disabled={busy} onClick={() => void act("cancel")} className="h-11 rounded-full border border-[#E8E4DC] px-5 text-sm text-[#75404A] disabled:opacity-50">{workflowCopy.bookingCancel}</button>
                 ) : null}
+                {booking.other_party_user_id && !blocked ? (
+                  <button type="button" disabled={blockBusy} onClick={() => void blockParticipant()} className="h-11 rounded-full border border-[#E8E4DC] px-5 text-sm text-[#75404A] disabled:opacity-50">
+                    {blockBusy ? workflowCopy.messageSending : workflowCopy.bookingBlockParticipant}
+                  </button>
+                ) : null}
+                {blocked ? <span role="status" className="self-center text-sm text-[#77736D]">{workflowCopy.bookingBlocked}</span> : null}
               </div>
+              {booking.conversation_id ? <ConversationPanel conversationId={booking.conversation_id} /> : null}
               <section className="mt-9 border-t border-[#E8E4DC] pt-6">
                 <h2 className="text-lg font-semibold">{workflowCopy.bookingActivity}</h2>
                 {events.length ? (
