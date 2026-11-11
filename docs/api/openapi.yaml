@@ -1,0 +1,772 @@
+openapi: 3.0.3
+info:
+  title: Along API
+  version: 1.0.0
+  description: Along marketplace API, version 1.
+paths:
+  /api/v1/auth/csrf:
+    get:
+      operationId: v1_auth_csrf_retrieve
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CsrfToken'
+          description: ''
+  /api/v1/auth/login:
+    post:
+      operationId: v1_auth_login_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Login'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Login'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Login'
+        required: true
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMe'
+          description: ''
+  /api/v1/auth/logout:
+    post:
+      operationId: v1_auth_logout_create
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/auth/password/confirm:
+    post:
+      operationId: v1_auth_password_confirm_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+        required: true
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/password/reset:
+    post:
+      operationId: v1_auth_password_reset_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '202':
+          description: No response body
+  /api/v1/auth/register:
+    post:
+      operationId: v1_auth_register_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Register'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Register'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Register'
+        required: true
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMe'
+          description: ''
+  /api/v1/categories:
+    get:
+      operationId: v1_categories_list
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PublicCategory'
+          description: ''
+  /api/v1/collections:
+    get:
+      operationId: v1_collections_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPublicCollectionList'
+          description: ''
+  /api/v1/collections/{slug}:
+    get:
+      operationId: v1_collections_retrieve
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicCollection'
+          description: ''
+  /api/v1/companions:
+    get:
+      operationId: v1_companions_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPublicHostList'
+          description: ''
+  /api/v1/companions/{slug}:
+    get:
+      operationId: v1_companions_retrieve
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicHost'
+          description: ''
+  /api/v1/experiences:
+    get:
+      operationId: v1_experiences_list
+      parameters:
+      - in: query
+        name: budget
+        schema:
+          type: integer
+        description: Maximum price in currency minor units.
+      - in: query
+        name: category
+        schema:
+          type: string
+      - in: query
+        name: city
+        schema:
+          type: string
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: date
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: duration
+        schema:
+          type: integer
+      - in: query
+        name: instant_booking
+        schema:
+          type: boolean
+      - in: query
+        name: language
+        schema:
+          type: string
+      - in: query
+        name: max_duration
+        schema:
+          type: integer
+      - in: query
+        name: min_duration
+        schema:
+          type: integer
+      - in: query
+        name: min_rating
+        schema:
+          type: number
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: query
+        name: q
+        schema:
+          type: string
+      - in: query
+        name: sort
+        schema:
+          type: string
+          enum:
+          - -price
+          - price
+          - rating
+          - recent
+          - relevance
+      - in: query
+        name: verified
+        schema:
+          type: boolean
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPublicExperienceList'
+          description: ''
+  /api/v1/experiences/{slug}:
+    get:
+      operationId: v1_experiences_retrieve
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicExperience'
+          description: ''
+  /api/v1/users/me:
+    get:
+      operationId: v1_users_me_retrieve
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMe'
+          description: ''
+    put:
+      operationId: v1_users_me_update
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserMe'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserMe'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserMe'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMe'
+          description: ''
+    patch:
+      operationId: v1_users_me_partial_update
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserMe'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserMe'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserMe'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMe'
+          description: ''
+components:
+  schemas:
+    CsrfToken:
+      type: object
+      properties:
+        csrfToken:
+          type: string
+      required:
+      - csrfToken
+    Login:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          writeOnly: true
+      required:
+      - email
+      - password
+    PaginatedPublicCollectionList:
+      type: object
+      required:
+      - results
+      properties:
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cD00ODY%3D"
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicCollection'
+    PaginatedPublicExperienceList:
+      type: object
+      required:
+      - results
+      properties:
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cD00ODY%3D"
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicExperience'
+    PaginatedPublicHostList:
+      type: object
+      required:
+      - results
+      properties:
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cD00ODY%3D"
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicHost'
+    PasswordResetConfirm:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        token:
+          type: string
+        new_password:
+          type: string
+          writeOnly: true
+      required:
+      - email
+      - new_password
+      - token
+    PasswordResetRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+      - email
+    PatchedUserMe:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        display_name:
+          type: string
+          maxLength: 120
+        country_code:
+          type: string
+          readOnly: true
+        timezone:
+          type: string
+          maxLength: 64
+        locale:
+          type: string
+          maxLength: 12
+        is_email_verified:
+          type: boolean
+          readOnly: true
+    PublicCategory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        slug:
+          type: string
+          maxLength: 100
+          pattern: ^[-a-zA-Z0-9_]+$
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+        icon:
+          type: string
+          maxLength: 50
+        cover_image:
+          type: string
+          maxLength: 500
+        count:
+          type: integer
+          readOnly: true
+      required:
+      - count
+      - id
+      - name
+      - slug
+    PublicCollection:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        slug:
+          type: string
+          maxLength: 180
+          pattern: ^[-a-zA-Z0-9_]+$
+        title:
+          type: string
+          maxLength: 180
+        description:
+          type: string
+        city:
+          type: string
+          maxLength: 100
+        image:
+          type: string
+          readOnly: true
+        experiences:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicExperience'
+          readOnly: true
+      required:
+      - experiences
+      - id
+      - image
+      - slug
+      - title
+    PublicExperience:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        slug:
+          type: string
+          maxLength: 180
+          pattern: ^[-a-zA-Z0-9_]+$
+        title:
+          type: string
+          maxLength: 180
+        summary:
+          type: string
+          maxLength: 300
+        description:
+          type: string
+        city:
+          type: string
+          readOnly: true
+        host:
+          allOf:
+          - $ref: '#/components/schemas/PublicHost'
+          readOnly: true
+        host_name:
+          type: string
+          readOnly: true
+        price_minor:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+          maxLength: 3
+        duration_minutes:
+          type: integer
+          maximum: 32767
+          minimum: 15
+        category:
+          type: string
+          readOnly: true
+        rating:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,1}(?:\.\d{0,2})?$
+        instant_booking_enabled:
+          type: boolean
+        instant_book:
+          type: boolean
+          readOnly: true
+        image:
+          type: string
+          readOnly: true
+        tags:
+          type: array
+          items:
+            type: string
+          readOnly: true
+      required:
+      - category
+      - city
+      - description
+      - duration_minutes
+      - host
+      - host_name
+      - id
+      - image
+      - instant_book
+      - price_minor
+      - slug
+      - tags
+      - title
+    PublicHost:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        slug:
+          type: string
+          maxLength: 150
+          pattern: ^[-a-zA-Z0-9_]+$
+        name:
+          type: string
+        city:
+          type: string
+          maxLength: 100
+        headline:
+          type: string
+          maxLength: 180
+        biography:
+          type: string
+        languages: {}
+        interests: {}
+        verified:
+          type: boolean
+        rating:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,1}(?:\.\d{0,2})?$
+        completed_bookings:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        image:
+          type: string
+          maxLength: 500
+      required:
+      - city
+      - id
+      - name
+      - rating
+      - slug
+    Register:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+          maxLength: 120
+        password:
+          type: string
+          writeOnly: true
+          minLength: 8
+      required:
+      - email
+      - password
+    UserMe:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        display_name:
+          type: string
+          maxLength: 120
+        country_code:
+          type: string
+          readOnly: true
+        timezone:
+          type: string
+          maxLength: 64
+        locale:
+          type: string
+          maxLength: 12
+        is_email_verified:
+          type: boolean
+          readOnly: true
+      required:
+      - country_code
+      - email
+      - id
+      - is_email_verified
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

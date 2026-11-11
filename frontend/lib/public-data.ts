@@ -93,7 +93,9 @@ export async function fetchPublicMarketplaceData(
     search.append(key, value);
   });
 
-  const response = await fetch(`/api/v1/public/marketplace/${search.toString() ? `?${search.toString()}` : ""}`, {
+  const endpoint = `/api/v1/public/marketplace${search.toString() ? `?${search.toString()}` : ""}`;
+
+  const response = await fetch(endpoint, {
     cache: "no-store",
   });
 

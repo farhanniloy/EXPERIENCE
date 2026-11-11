@@ -8,6 +8,7 @@
 - Tailwind: 4.3.3
 - Django: 5.1.4
 - Django REST Framework: 3.16.1
+- drf-spectacular: 0.28.0
 - Celery: 5.5.0
 - Redis: 5.2.1
 - psycopg: 3.3.8

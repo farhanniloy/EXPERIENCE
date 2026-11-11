@@ -4,16 +4,20 @@ from pathlib import Path
 from django.conf import settings
 from django.http import JsonResponse
 
+from config.product import BRAND_NAME, COUNTRY_CODE, CURRENCY_CODE, LAUNCH_CITY, TAGLINE, TIME_ZONE
+
 
 def _load_marketplace_data():
     fixture_path = Path(settings.BASE_DIR) / "fixtures" / "public_data.json"
     if not fixture_path.exists():
         return {
             "site": {
-                "brand": "Along",
-                "currency": "BDT",
-                "timezone": "Asia/Dhaka",
-                "country": "BD",
+                "brand": BRAND_NAME,
+                "tagline": TAGLINE,
+                "currency": CURRENCY_CODE,
+                "timezone": TIME_ZONE,
+                "country": COUNTRY_CODE,
+                "city": LAUNCH_CITY,
             },
             "categories": [],
             "experiences": [],
@@ -22,7 +26,17 @@ def _load_marketplace_data():
         }
 
     with fixture_path.open("r", encoding="utf-8") as fh:
-        return json.load(fh)
+        payload = json.load(fh)
+    payload["site"] = {
+        **payload.get("site", {}),
+        "brand": BRAND_NAME,
+        "tagline": TAGLINE,
+        "currency": CURRENCY_CODE,
+        "timezone": TIME_ZONE,
+        "country": COUNTRY_CODE,
+        "city": LAUNCH_CITY,
+    }
+    return payload
 
 
 def public_marketplace(request):

@@ -17,10 +17,16 @@ A monorepo foundation for the Along marketplace MVP.
    docker compose up --build
 3. Visit http://localhost:3000 to view the frontend.
 4. API health check: http://localhost:8000/api/v1/health/
+5. Seed the database with sample marketplace records:
+   docker compose exec backend python manage.py seed_sample_data
+6. API reference: http://localhost:8000/api/docs/
 
 ## Included defaults
 - PostgreSQL with the btree_gist extension enabled via migration
 - Redis and Celery service wiring
 - Django health endpoint
 - Next.js proxy route that forwards /api requests to Django
-- Minimal test and lint validation commands
+- Session-based API authentication and versioned public catalog endpoints
+- OpenAPI schema at docs/api/openapi.yaml
+- Backend tests: docker compose exec backend python manage.py test
+- Frontend checks: cd frontend && npm run lint && npx tsc --noEmit

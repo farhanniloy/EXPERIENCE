@@ -80,7 +80,7 @@
       "description": "Low-pressure outings for conversation, culture, and calm city moments.",
       "city": "Chattogram",
       "image": "/placeholder-experience.svg",
-      "experience_ids": ["chattogram-coast-walk", "tea-and-architecture"]
+      "experience_ids": ["gallery-hunt", "tea-and-architecture"]
     },
     {
       "id": "night-out",
@@ -235,6 +235,45 @@
       "verified": true,
       "image": "/placeholder-host.svg",
       "tags": ["Art", "Photography", "Culture"]
+    },
+    {
+      "id": "imran",
+      "slug": "imran",
+      "name": "Imran",
+      "city": "Chattogram",
+      "headline": "Local architecture enthusiast and tea guide.",
+      "bio": "Imran brings a thoughtful perspective to the city's architecture, tea culture, and public places.",
+      "rating": 4.8,
+      "completed_bookings": 52,
+      "verified": true,
+      "image": "/placeholder-host.svg",
+      "tags": ["Architecture", "Tea", "Culture"]
+    },
+    {
+      "id": "tisha",
+      "slug": "tisha",
+      "name": "Tisha",
+      "city": "Sylhet",
+      "headline": "Easygoing guide to the city's evening atmosphere.",
+      "bio": "Tisha enjoys sharing public market routes, local stories, and scenic city walks.",
+      "rating": 4.8,
+      "completed_bookings": 41,
+      "verified": true,
+      "image": "/placeholder-host.svg",
+      "tags": ["City exploration", "Food", "Culture"]
+    },
+    {
+      "id": "zahid",
+      "slug": "zahid",
+      "name": "Zahid",
+      "city": "Sylhet",
+      "headline": "Film fan who knows relaxed public cinema plans.",
+      "bio": "Zahid pairs public screenings with easygoing conversation and nearby café recommendations.",
+      "rating": 4.7,
+      "completed_bookings": 36,
+      "verified": true,
+      "image": "/placeholder-host.svg",
+      "tags": ["Movies", "Cafés", "Conversation"]
     }
   ]
 }

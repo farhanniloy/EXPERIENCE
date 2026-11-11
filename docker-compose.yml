@@ -44,6 +44,11 @@ services:
       DJANGO_DEBUG: "True"
       REDIS_URL: redis://redis:6379/0
       APP_ENV: development
+      ALONG_BRAND_NAME: ${ALONG_BRAND_NAME:-Along}
+      ALONG_TAGLINE: ${ALONG_TAGLINE:-Good company. Great experiences.}
+      ALONG_COUNTRY_CODE: ${ALONG_COUNTRY_CODE:-BD}
+      ALONG_CURRENCY_CODE: ${ALONG_CURRENCY_CODE:-BDT}
+      ALONG_TIME_ZONE: ${ALONG_TIME_ZONE:-Asia/Dhaka}
     ports:
       - "8000:8000"
     volumes:
@@ -68,18 +73,29 @@ services:
       DJANGO_DEBUG: "True"
       REDIS_URL: redis://redis:6379/0
       APP_ENV: development
+      ALONG_BRAND_NAME: ${ALONG_BRAND_NAME:-Along}
+      ALONG_TAGLINE: ${ALONG_TAGLINE:-Good company. Great experiences.}
+      ALONG_COUNTRY_CODE: ${ALONG_COUNTRY_CODE:-BD}
+      ALONG_CURRENCY_CODE: ${ALONG_CURRENCY_CODE:-BDT}
+      ALONG_TIME_ZONE: ${ALONG_TIME_ZONE:-Asia/Dhaka}
     volumes:
       - ./backend:/app
 
   frontend:
     build:
       context: ./frontend
-    command: npm run dev -- --hostname 0.0.0.0 --port 3000
+    command: sh -c "npm install && npm run dev -- --hostname 0.0.0.0 --port 3000"
     depends_on:
       backend:
         condition: service_started
     environment:
       NEXT_PUBLIC_API_URL: http://backend:8000
+      NEXT_PUBLIC_BRAND_NAME: ${ALONG_BRAND_NAME:-Along}
+      NEXT_PUBLIC_TAGLINE: ${ALONG_TAGLINE:-Good company. Great experiences.}
+      NEXT_PUBLIC_COUNTRY_CODE: ${ALONG_COUNTRY_CODE:-BD}
+      NEXT_PUBLIC_CURRENCY_CODE: ${ALONG_CURRENCY_CODE:-BDT}
+      NEXT_PUBLIC_TIME_ZONE: ${ALONG_TIME_ZONE:-Asia/Dhaka}
+      NEXT_PUBLIC_LAUNCH_CITY: ${ALONG_LAUNCH_CITY:-Dhaka}
       PORT: 3000
     ports:
       - "3000:3000"

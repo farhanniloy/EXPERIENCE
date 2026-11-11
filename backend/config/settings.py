@@ -3,6 +3,8 @@
 import os
 from pathlib import Path
 
+from config.product import BRAND_NAME, TIME_ZONE
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-insecure-dev-secret-key")
@@ -18,7 +20,9 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "drf_spectacular",
     "infrastructure",
+    "modules.platform",
     "modules.discovery",
 ]
 
@@ -77,9 +81,9 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
+AUTHENTICATION_BACKENDS = ["modules.platform.auth.EmailBackend"]
 
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = "Asia/Dhaka"
 USE_I18N = True
 USE_TZ = True
 
@@ -87,14 +91,42 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@along.local")
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+)
 
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.ScopedRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "register": "10/hour",
+        "login": "10/hour",
+        "password_reset": "5/hour",
+        "default": "1000/day",
+    },
+    "EXCEPTION_HANDLER": "modules.platform.exceptions.api_exception_handler",
+    "DEFAULT_PAGINATION_CLASS": "modules.platform.api.CursorPagination",
+    "PAGE_SIZE": 20,
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": f"{BRAND_NAME} API",
+    "DESCRIPTION": "Along marketplace API, version 1.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }
 
 CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+BOOKING_HOLD_MINUTES = int(os.environ.get("BOOKING_HOLD_MINUTES", "15"))
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
@@ -102,3 +134,9 @@ CSRF_TRUSTED_ORIGINS = [
     "http://frontend:3000",
     "http://backend:8000",
 ]
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = "Lax"
