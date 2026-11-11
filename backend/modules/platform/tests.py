@@ -5,14 +5,15 @@ from types import SimpleNamespace
 from unittest import skipUnless
 from urllib.parse import parse_qs, urlparse
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import mail
-from django.core.exceptions import ImproperlyConfigured
-from django.core.exceptions import ValidationError
+from django.core.cache import cache
+from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import IntegrityError, connection, connections
 from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
 
 from .models import (
     AvailabilityException,
@@ -85,6 +86,55 @@ class PlatformAPITests(APITestCase):
             rating=4.8,
         )
         self.experience.categories.add(self.category)
+
+    def test_security_configuration_has_no_wildcard_hosts_and_uses_safe_cookies(self):
+        self.assertNotIn("*", settings.ALLOWED_HOSTS)
+        self.assertTrue(settings.SESSION_COOKIE_HTTPONLY)
+        self.assertEqual(settings.SESSION_COOKIE_SAMESITE, "Lax")
+        self.assertEqual(settings.CSRF_COOKIE_SAMESITE, "Lax")
+        self.assertTrue(settings.SECURE_CONTENT_TYPE_NOSNIFF)
+
+    def test_registration_requires_csrf_and_accepts_a_valid_token(self):
+        client = APIClient(enforce_csrf_checks=True)
+        payload = {
+            "email": "csrf-user@example.test",
+            "display_name": "CSRF User",
+            "password": "Along-CSRF-Password-391!",
+        }
+
+        rejected = client.post("/api/v1/auth/register", payload, format="json")
+        self.assertEqual(rejected.status_code, 403)
+
+        client.get("/api/v1/auth/csrf")
+        csrf_token = client.cookies["csrftoken"].value
+        accepted = client.post(
+            "/api/v1/auth/register",
+            payload,
+            format="json",
+            HTTP_X_CSRFTOKEN=csrf_token,
+        )
+        self.assertEqual(accepted.status_code, 201)
+
+    def test_login_rate_limit_is_enforced(self):
+        cache.clear()
+        client = APIClient()
+        responses = [
+            client.post(
+                "/api/v1/auth/login",
+                {"email": "missing@example.test", "password": "invalid"},
+                format="json",
+            )
+            for _ in range(10)
+        ]
+        limited = client.post(
+            "/api/v1/auth/login",
+            {"email": "missing@example.test", "password": "invalid"},
+            format="json",
+        )
+        cache.clear()
+
+        self.assertTrue(all(response.status_code == 400 for response in responses))
+        self.assertEqual(limited.status_code, 429)
 
     def test_registration_login_and_me(self):
         response = self.client.post(

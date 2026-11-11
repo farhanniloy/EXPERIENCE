@@ -4,6 +4,7 @@
 - Next.js: 16.4.6
 - React: 19.3.0
 - React DOM: 19.3.0
+- Playwright: 1.65.0
 - TypeScript: 5.x
 - Tailwind: 4.3.3
 - Django: 5.1.4

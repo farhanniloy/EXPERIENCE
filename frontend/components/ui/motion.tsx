@@ -1,12 +1,14 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { ReactNode } from "react";
 
 export function FadeIn({ children, className = "" }: { children: ReactNode; className?: string }) {
+  const shouldReduceMotion = useReducedMotion();
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 18 }}
+      initial={shouldReduceMotion ? false : { opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28, ease: "easeOut" }}
+      transition={{ duration: shouldReduceMotion ? 0 : 0.28, ease: "easeOut" }}
       className={className}
     >
       {children}
@@ -15,6 +17,8 @@ export function FadeIn({ children, className = "" }: { children: ReactNode; clas
 }
 
 export function Stagger({ children, className = "" }: { children: ReactNode; className?: string }) {
+  const shouldReduceMotion = useReducedMotion();
+
   return (
     <motion.div
       initial="hidden"
@@ -23,7 +27,7 @@ export function Stagger({ children, className = "" }: { children: ReactNode; cla
         hidden: {},
         visible: {
           transition: {
-            staggerChildren: 0.08,
+            staggerChildren: shouldReduceMotion ? 0 : 0.08,
           },
         },
       }}

@@ -104,3 +104,17 @@ experiences, and appear on the homepage only during their active window.
 Expired active collections are persisted as inactive on public collection
 access; date filtering also prevents an expired collection from being shown
 before that cleanup runs.
+
+## 10. Stage 8 hardening and QA
+Django production settings now require a non-placeholder secret key and an
+explicit non-wildcard host allowlist, reject `DEBUG=True`, and default HTTPS
+redirects and HSTS on in production. Allowed hosts and trusted CSRF origins can
+be supplied through environment variables; production requires both allowlists,
+while local defaults remain limited to development hosts. HSTS subdomains and
+preload are opt-in. The development Compose file remains for local use only.
+Sensitive browser journeys use Playwright with isolated API responses so test
+runs do not create or alter marketplace records. Backend tests separately
+exercise CSRF enforcement, login throttling, object permissions, payment
+webhook replay protection, booking concurrency, and sensitive response fields.
+The host interface uses Framer Motion's reduced-motion preference for
+decorative entrance and stagger animations.
