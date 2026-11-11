@@ -1,0 +1,91 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-along}
+      POSTGRES_USER: ${POSTGRES_USER:-along}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-along}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-along} -d ${POSTGRES_DB:-along}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-along}
+      POSTGRES_USER: ${POSTGRES_USER:-along}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-along}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-secret-key}
+      DJANGO_DEBUG: "True"
+      REDIS_URL: redis://redis:6379/0
+      APP_ENV: development
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+
+  celery:
+    build:
+      context: ./backend
+    command: celery -A config worker -l info
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-along}
+      POSTGRES_USER: ${POSTGRES_USER:-along}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-along}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-secret-key}
+      DJANGO_DEBUG: "True"
+      REDIS_URL: redis://redis:6379/0
+      APP_ENV: development
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build:
+      context: ./frontend
+    command: npm run dev -- --hostname 0.0.0.0 --port 3000
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:8000
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:
