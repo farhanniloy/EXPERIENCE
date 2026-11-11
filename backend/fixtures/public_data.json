@@ -1,0 +1,240 @@
+{
+  "site": {
+    "brand": "Along",
+    "tagline": "Good company. Great experiences.",
+    "currency": "BDT",
+    "timezone": "Asia/Dhaka",
+    "country": "BD",
+    "city": "Dhaka"
+  },
+  "categories": [
+    {
+      "id": "movies",
+      "slug": "movies",
+      "name": "Movies",
+      "description": "Curated screenings, premieres, and cinema nights with great company.",
+      "icon": "film",
+      "featured": true,
+      "count": 12
+    },
+    {
+      "id": "cafes",
+      "slug": "cafes",
+      "name": "Food and cafés",
+      "description": "Slow mornings, late-night bites, and easygoing conversations over coffee.",
+      "icon": "coffee",
+      "featured": true,
+      "count": 18
+    },
+    {
+      "id": "photography",
+      "slug": "photography",
+      "name": "Photography",
+      "description": "Explore the city and capture stories with a trusted local guide.",
+      "icon": "camera",
+      "featured": false,
+      "count": 10
+    },
+    {
+      "id": "city-exploration",
+      "slug": "city-exploration",
+      "name": "City exploration",
+      "description": "Discover neighborhoods, hidden gems, and local favorites.",
+      "icon": "map",
+      "featured": true,
+      "count": 15
+    },
+    {
+      "id": "museums",
+      "slug": "museums",
+      "name": "Museums and culture",
+      "description": "Thoughtful cultural outings with context, calm pacing, and good conversation.",
+      "icon": "landmark",
+      "featured": false,
+      "count": 8
+    },
+    {
+      "id": "games",
+      "slug": "games",
+      "name": "Sports and games",
+      "description": "Playful afternoons, team energy, and social experiences built for fun.",
+      "icon": "gamepad",
+      "featured": false,
+      "count": 9
+    }
+  ],
+  "collections": [
+    {
+      "id": "city-weekend",
+      "slug": "city-weekend",
+      "title": "City weekend picks",
+      "description": "Short, memorable plans that are easy to book and full of energy.",
+      "city": "Dhaka",
+      "image": "/placeholder-experience.svg",
+      "experience_ids": ["dhaka-ramadan-walk", "cafe-storytelling", "gallery-hunt"]
+    },
+    {
+      "id": "slow-sunday",
+      "slug": "slow-sunday",
+      "title": "Slow Sunday",
+      "description": "Low-pressure outings for conversation, culture, and calm city moments.",
+      "city": "Chattogram",
+      "image": "/placeholder-experience.svg",
+      "experience_ids": ["chattogram-coast-walk", "tea-and-architecture"]
+    },
+    {
+      "id": "night-out",
+      "slug": "night-out",
+      "title": "Night out energy",
+      "description": "Age-appropriate social plans for movies, fun spots, and creative nights.",
+      "city": "Sylhet",
+      "image": "/placeholder-experience.svg",
+      "experience_ids": ["sylhet-lantern-tour", "film-and-pizza"]
+    }
+  ],
+  "experiences": [
+    {
+      "id": "dhaka-ramadan-walk",
+      "slug": "dhaka-ramadan-walk",
+      "title": "Dhaka evening walk",
+      "city": "Dhaka",
+      "summary": "A relaxed city walk through heritage lanes, café stops, and photo-worthy corners.",
+      "description": "Stroll through the city with a local host who knows the best neighborhoods, food stops, and hidden urban gems.",
+      "price_minor": 1900,
+      "currency": "BDT",
+      "duration_minutes": 120,
+      "category": "city-exploration",
+      "rating": 4.8,
+      "instant_book": true,
+      "host_name": "Nadia",
+      "image": "/placeholder-experience.svg",
+      "tags": ["Historic", "Conversation", "Evening"]
+    },
+    {
+      "id": "cafe-storytelling",
+      "slug": "cafe-storytelling",
+      "title": "Café storytelling session",
+      "city": "Dhaka",
+      "summary": "A warm conversation-heavy café plan with a homemade menu and easygoing vibe.",
+      "description": "Swap stories, enjoy a café menu, and explore a neighborhood with a host who loves conversation and local recommendations.",
+      "price_minor": 1500,
+      "currency": "BDT",
+      "duration_minutes": 90,
+      "category": "cafes",
+      "rating": 4.9,
+      "instant_book": true,
+      "host_name": "Rafi",
+      "image": "/placeholder-experience.svg",
+      "tags": ["Coffee", "Conversation", "Casual"]
+    },
+    {
+      "id": "gallery-hunt",
+      "slug": "gallery-hunt",
+      "title": "Gallery and street hunt",
+      "city": "Chattogram",
+      "summary": "A gallery crawl plus a walk through fresh creative corners and local color.",
+      "description": "Visit a few interesting local creative spots, take photos, and discover the city through a curated route.",
+      "price_minor": 2300,
+      "currency": "BDT",
+      "duration_minutes": 150,
+      "category": "photography",
+      "rating": 4.7,
+      "instant_book": false,
+      "host_name": "Ayesha",
+      "image": "/placeholder-experience.svg",
+      "tags": ["Creative", "Photography", "Local"]
+    },
+    {
+      "id": "tea-and-architecture",
+      "slug": "tea-and-architecture",
+      "title": "Tea and architecture walk",
+      "city": "Chattogram",
+      "summary": "Slow-paced architecture and tea stops for anyone who loves local character.",
+      "description": "Combine a tea break with thoughtful walks past noteworthy architecture and city stories.",
+      "price_minor": 2100,
+      "currency": "BDT",
+      "duration_minutes": 120,
+      "category": "museums",
+      "rating": 4.6,
+      "instant_book": true,
+      "host_name": "Imran",
+      "image": "/placeholder-experience.svg",
+      "tags": ["Tea", "Architecture", "Culture"]
+    },
+    {
+      "id": "sylhet-lantern-tour",
+      "slug": "sylhet-lantern-tour",
+      "title": "Lantern night tour",
+      "city": "Sylhet",
+      "summary": "A colorful evening route through markets, food corners, and lantern-lit streets.",
+      "description": "Explore the city after dark with a guide who knows the best food stops and scenic walk routes.",
+      "price_minor": 2600,
+      "currency": "BDT",
+      "duration_minutes": 180,
+      "category": "city-exploration",
+      "rating": 4.8,
+      "instant_book": true,
+      "host_name": "Tisha",
+      "image": "/placeholder-experience.svg",
+      "tags": ["Night", "Culture", "Food"]
+    },
+    {
+      "id": "film-and-pizza",
+      "slug": "film-and-pizza",
+      "title": "Film and pizza night",
+      "city": "Sylhet",
+      "summary": "A laid-back movie plan with pizza, conversation, and easygoing energy.",
+      "description": "Catch a screening with a scenic nearby café stop, then wind down with conversation over pizza.",
+      "price_minor": 2200,
+      "currency": "BDT",
+      "duration_minutes": 150,
+      "category": "movies",
+      "rating": 4.9,
+      "instant_book": true,
+      "host_name": "Zahid",
+      "image": "/placeholder-experience.svg",
+      "tags": ["Movies", "Pizza", "Evening"]
+    }
+  ],
+  "companions": [
+    {
+      "id": "nadia",
+      "slug": "nadia",
+      "name": "Nadia",
+      "city": "Dhaka",
+      "headline": "City explorer with a soft spot for hidden cafés and quiet corners.",
+      "bio": "Nadia helps people feel at ease in the city with thoughtful routes and easy conversation.",
+      "rating": 4.9,
+      "completed_bookings": 128,
+      "verified": true,
+      "image": "/placeholder-host.svg",
+      "tags": ["City exploration", "Food", "Photography"]
+    },
+    {
+      "id": "rafi",
+      "slug": "rafi",
+      "name": "Rafi",
+      "city": "Dhaka",
+      "headline": "Conversational host who makes plans feel effortless.",
+      "bio": "Rafi's best plans are relaxed, social, and full of local flavor without feeling forced.",
+      "rating": 4.8,
+      "completed_bookings": 93,
+      "verified": true,
+      "image": "/placeholder-host.svg",
+      "tags": ["Cafés", "Conversation", "Local spots"]
+    },
+    {
+      "id": "ayesha",
+      "slug": "ayesha",
+      "name": "Ayesha",
+      "city": "Chattogram",
+      "headline": "Creative guide for slow, thoughtful city outings.",
+      "bio": "Ayesha blends hands-on experiences, storytelling, and easy pacing for memorable plans.",
+      "rating": 4.7,
+      "completed_bookings": 67,
+      "verified": true,
+      "image": "/placeholder-host.svg",
+      "tags": ["Art", "Photography", "Culture"]
+    }
+  ]
+}
