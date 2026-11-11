@@ -116,6 +116,7 @@ REST_FRAMEWORK = {
         "booking": "60/hour",
         "payments": "30/hour",
         "messaging": "30/hour",
+        "safety": "10/hour",
         "moderation": "120/hour",
         "default": "1000/day",
     },

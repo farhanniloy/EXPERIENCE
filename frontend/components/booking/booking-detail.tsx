@@ -45,6 +45,10 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [blockBusy, setBlockBusy] = useState(false);
+  const [safetyMessage, setSafetyMessage] = useState("");
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState("");
   const paymentKey = useRef<string | null>(null);
 
   const load = useCallback(async () => {
@@ -125,6 +129,62 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
       setError(reason instanceof Error ? reason.message : workflowCopy.bookingBlockError);
     } finally {
       setBlockBusy(false);
+    }
+  }
+
+  async function safetyCheckIn(checkInStatus: "safe" | "needs_help") {
+    if (!booking) return;
+    setError("");
+    setSafetyMessage("");
+    try {
+      await apiRequest(`bookings/${booking.id}/check-in`, {
+        method: "POST",
+        body: jsonBody({ status: checkInStatus }),
+      });
+      setSafetyMessage(workflowCopy.safetyCheckInSaved);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : workflowCopy.safetyCheckInError);
+    }
+  }
+
+  async function submitSafetyReport(formData: FormData) {
+    if (!booking) return;
+    setReportBusy(true);
+    setError("");
+    try {
+      await apiRequest("reports", {
+        method: "POST",
+        body: jsonBody({
+          booking_id: booking.id,
+          reason: formData.get("reason"),
+          description: formData.get("description"),
+        }),
+      });
+      setReportOpen(false);
+      setSafetyMessage(workflowCopy.safetyReportSent);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : workflowCopy.safetyReportError);
+    } finally {
+      setReportBusy(false);
+    }
+  }
+
+  async function submitReview(formData: FormData) {
+    if (!booking) return;
+    setError("");
+    setReviewMessage("");
+    try {
+      await apiRequest(`bookings/${booking.id}/review`, {
+        method: "POST",
+        body: jsonBody({
+          rating: Number(formData.get("rating")),
+          comment: formData.get("comment"),
+          private_safety_feedback: formData.get("private_safety_feedback"),
+        }),
+      });
+      setReviewMessage(workflowCopy.reviewSent);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : workflowCopy.reviewError);
     }
   }
 
@@ -221,7 +281,68 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
                   </button>
                 ) : null}
                 {blocked ? <span role="status" className="self-center text-sm text-[#77736D]">{workflowCopy.bookingBlocked}</span> : null}
+                {booking.other_party_user_id && !reportOpen ? (
+                  <button type="button" onClick={() => setReportOpen(true)} className="h-11 rounded-full border border-[#E8E4DC] px-5 text-sm text-[#75404A]">
+                    {workflowCopy.safetyReportAction}
+                  </button>
+                ) : null}
               </div>
+              {reportOpen ? (
+                <form action={(formData) => void submitSafetyReport(formData)} className="mt-5 space-y-3 rounded-2xl border border-[#E8E4DC] bg-[#F7F5F0] p-5">
+                  <label className="block text-sm font-medium">
+                    {workflowCopy.safetyReportReason}
+                    <select name="reason" required className="mt-2 h-11 w-full rounded-lg border border-[#E8E4DC] bg-white px-3">
+                      <option value="safety_concern">{workflowCopy.safetyReasonSafetyConcern}</option>
+                        <option value="harassment">{workflowCopy.safetyReasonHarassment}</option>
+                        <option value="misconduct">{workflowCopy.safetyReasonMisconduct}</option>
+                        <option value="no_show">{workflowCopy.safetyReasonNoShow}</option>
+                        <option value="impersonation">{workflowCopy.safetyReasonImpersonation}</option>
+                        <option value="other">{workflowCopy.safetyReasonOther}</option>
+                    </select>
+                  </label>
+                  <label className="block text-sm font-medium">
+                    {workflowCopy.safetyReportDescription}
+                    <textarea name="description" required maxLength={5000} className="mt-2 min-h-28 w-full rounded-lg border border-[#E8E4DC] bg-white p-3" />
+                  </label>
+                  <div className="flex gap-2">
+                    <button disabled={reportBusy} className="rounded-full bg-[#75404A] px-4 py-2 text-sm text-white disabled:opacity-60">{reportBusy ? workflowCopy.messageSending : workflowCopy.safetyReportSubmit}</button>
+                    <button type="button" onClick={() => setReportOpen(false)} className="rounded-full border border-[#E8E4DC] px-4 py-2 text-sm">{workflowCopy.safetyReportCancel}</button>
+                  </div>
+                </form>
+              ) : null}
+              {["confirmed", "in_progress"].includes(booking.status) ? (
+                <section className="mt-7 rounded-2xl border border-[#E8E4DC] bg-[#F7F5F0] p-5">
+                  <h2 className="text-lg font-semibold">{workflowCopy.safetyCheckInTitle}</h2>
+                  <p className="mt-1 text-sm text-[#77736D]">{workflowCopy.safetyCheckInDescription}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => void safetyCheckIn("safe")} className="rounded-full bg-[#777B61] px-4 py-2 text-sm text-white">{workflowCopy.safetyCheckInSafe}</button>
+                    <button type="button" onClick={() => void safetyCheckIn("needs_help")} className="rounded-full border border-[#75404A] px-4 py-2 text-sm text-[#75404A]">{workflowCopy.safetyCheckInHelp}</button>
+                  </div>
+                  {safetyMessage ? <p role="status" className="mt-3 text-sm text-[#526044]">{safetyMessage}</p> : null}
+                </section>
+              ) : null}
+              {!hostView && booking.status === "completed" ? (
+                <section className="mt-7 rounded-2xl border border-[#E8E4DC] bg-white p-5">
+                  <h2 className="text-lg font-semibold">{workflowCopy.reviewTitle}</h2>
+                  {reviewMessage ? <p role="status" className="mt-3 text-sm text-[#526044]">{reviewMessage}</p> : (
+                    <form action={(formData) => void submitReview(formData)} className="mt-4 space-y-3">
+                      <label className="block text-sm font-medium">{workflowCopy.reviewRating}
+                        <select name="rating" required className="mt-2 h-11 w-full rounded-lg border border-[#E8E4DC] bg-white px-3">
+                          {[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating}/5</option>)}
+                        </select>
+                      </label>
+                      <label className="block text-sm font-medium">{workflowCopy.reviewComment}
+                        <textarea name="comment" maxLength={2000} className="mt-2 min-h-24 w-full rounded-lg border border-[#E8E4DC] p-3" />
+                      </label>
+                      <label className="block text-sm font-medium">{workflowCopy.reviewPrivateFeedback}
+                        <textarea name="private_safety_feedback" maxLength={2000} className="mt-2 min-h-24 w-full rounded-lg border border-[#E8E4DC] p-3" />
+                      </label>
+                      <button className="rounded-full bg-[#75404A] px-5 py-3 text-sm text-white">{workflowCopy.reviewSubmit}</button>
+                      <p className="text-xs text-[#77736D]">{workflowCopy.reviewVerifiedNote}</p>
+                    </form>
+                  )}
+                </section>
+              ) : null}
               {booking.conversation_id ? <ConversationPanel conversationId={booking.conversation_id} /> : null}
               <section className="mt-9 border-t border-[#E8E4DC] pt-6">
                 <h2 className="text-lg font-semibold">{workflowCopy.bookingActivity}</h2>

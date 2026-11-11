@@ -78,3 +78,29 @@ and route suspected solicitation or off-platform contact to staff moderation.
 Email notifications are written to a transactional outbox with their domain
 operation and delivered asynchronously by Celery. Booking reminders are
 scheduled for 24 hours before the confirmed start time.
+
+## 9. Safety and staff operations
+Safety reports are tied to the other participant in a booking or to the author
+of a published review; booking reports and "needs help" check-ins create
+actionable incidents. A booking has one current check-in per participant.
+Customer reviews can be submitted only for completed bookings, are unique per
+booking and customer, and remain private until staff moderation. Published
+reviews expose a verified-completed-booking label; private safety feedback is
+available only in the staff workspace.
+
+Staff users can review host applications, listings, user reports, reviews,
+bookings, and payments through the staff pages and Django admin. Suspending or
+reactivating accounts through the custom staff API is superuser-only; a
+reactivated host is returned to review rather than automatically republished.
+Admin moderation, safety report handling, account status changes, and model
+edits in Django admin create audit records. Detailed verification checks can
+be viewed only in staff-only Django admin; provider references and metadata
+are hidden there and never included in customer or public API responses.
+Admin MFA is not wired in this MVP; production access must add MFA before
+launch.
+
+Curated collections are managed in Django admin, can select published
+experiences, and appear on the homepage only during their active window.
+Expired active collections are persisted as inactive on public collection
+access; date filtering also prevents an expired collection from being shown
+before that cleanup runs.

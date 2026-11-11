@@ -4,6 +4,54 @@ info:
   version: 1.0.0
   description: Along marketplace API, version 1.
 paths:
+  /api/v1/admin/accounts/{account_id}/suspension:
+    post:
+      operationId: v1_admin_accounts_suspension_create
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountSuspension'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AccountSuspension'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AccountSuspension'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffActionOutput'
+          description: ''
+  /api/v1/admin/dashboard:
+    get:
+      operationId: v1_admin_dashboard_retrieve
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/admin/moderation:
     get:
       operationId: v1_admin_moderation_list
@@ -52,6 +100,104 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ModerationActionOutput'
+          description: ''
+  /api/v1/admin/reports:
+    get:
+      operationId: v1_admin_reports_list
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StaffReportOutput'
+          description: ''
+  /api/v1/admin/reports/{report_id}:
+    post:
+      operationId: v1_admin_reports_create
+      parameters:
+      - in: path
+        name: report_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffReportAction'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StaffReportAction'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StaffReportAction'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffActionOutput'
+          description: ''
+  /api/v1/admin/reviews:
+    get:
+      operationId: v1_admin_reviews_list
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StaffReviewOutput'
+          description: ''
+  /api/v1/admin/reviews/{review_id}:
+    post:
+      operationId: v1_admin_reviews_create
+      parameters:
+      - in: path
+        name: review_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffReviewAction'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StaffReviewAction'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StaffReviewAction'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffActionOutput'
           description: ''
   /api/v1/auth/csrf:
     get:
@@ -271,6 +417,39 @@ paths:
               schema:
                 $ref: '#/components/schemas/BookingOutput'
           description: ''
+  /api/v1/bookings/{booking_id}/check-in:
+    post:
+      operationId: v1_bookings_check_in_create
+      parameters:
+      - in: path
+        name: booking_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SafetyCheckIn'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SafetyCheckIn'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SafetyCheckIn'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SafetyCheckInOutput'
+          description: ''
   /api/v1/bookings/{booking_id}/events:
     get:
       operationId: v1_bookings_events_list
@@ -319,6 +498,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentOutput'
+          description: ''
+  /api/v1/bookings/{booking_id}/review:
+    post:
+      operationId: v1_bookings_review_create
+      parameters:
+      - in: path
+        name: booking_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReviewCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReviewCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingReviewOutput'
           description: ''
   /api/v1/categories:
     get:
@@ -413,6 +625,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedPublicHostList'
+          description: ''
+  /api/v1/companions/{host_slug}/reviews:
+    get:
+      operationId: v1_companions_reviews_list
+      parameters:
+      - in: path
+        name: host_slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PublicReview'
           description: ''
   /api/v1/companions/{slug}:
     get:
@@ -1103,6 +1338,32 @@ paths:
               schema:
                 $ref: '#/components/schemas/RefundOutput'
           description: ''
+  /api/v1/reports:
+    post:
+      operationId: v1_reports_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SafetyReportCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SafetyReportCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SafetyReportCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SafetyReportOutput'
+          description: ''
   /api/v1/users/{user_id}/block:
     post:
       operationId: v1_users_block_create
@@ -1213,7 +1474,22 @@ paths:
           description: ''
 components:
   schemas:
-    ActionEnum:
+    AccountSuspension:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/AccountSuspensionStatusEnum'
+      required:
+      - status
+    AccountSuspensionStatusEnum:
+      enum:
+      - active
+      - suspended
+      type: string
+      description: |-
+        * `active` - active
+        * `suspended` - suspended
+    Action55fEnum:
       enum:
       - approve
       - reject
@@ -1448,6 +1724,20 @@ components:
       - timezone
       - total_minor
       - viewer_role
+    BookingReviewOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        verified_booking:
+          type: boolean
+      required:
+      - id
+      - status
+      - verified_booking
     BookingSummary:
       type: object
       properties:
@@ -1795,7 +2085,7 @@ components:
       type: object
       properties:
         action:
-          $ref: '#/components/schemas/ActionEnum'
+          $ref: '#/components/schemas/Action55fEnum'
       required:
       - action
     ModerationActionOutput:
@@ -2332,6 +2622,53 @@ components:
       - name
       - rating
       - slug
+    PublicReview:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        reviewer_name:
+          type: string
+        rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        comment:
+          type: string
+          maxLength: 2000
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        verified_booking:
+          type: boolean
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - rating
+      - reviewer_name
+      - verified_booking
+    ReasonEnum:
+      enum:
+      - harassment
+      - safety_concern
+      - no_show
+      - misconduct
+      - impersonation
+      - review_content
+      - other
+      type: string
+      description: |-
+        * `harassment` - harassment
+        * `safety_concern` - safety_concern
+        * `no_show` - no_show
+        * `misconduct` - misconduct
+        * `impersonation` - impersonation
+        * `review_content` - review_content
+        * `other` - other
     RefundCreate:
       type: object
       properties:
@@ -2388,6 +2725,91 @@ components:
       required:
       - email
       - password
+    ReviewCreate:
+      type: object
+      properties:
+        rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        comment:
+          type: string
+          maxLength: 2000
+        private_safety_feedback:
+          type: string
+          writeOnly: true
+          maxLength: 2000
+      required:
+      - rating
+    SafetyCheckIn:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/SafetyCheckInStatusEnum'
+        note:
+          type: string
+          maxLength: 500
+      required:
+      - status
+    SafetyCheckInOutput:
+      type: object
+      properties:
+        status:
+          type: string
+        checked_at:
+          type: string
+          format: date-time
+        safety_team_notified:
+          type: boolean
+      required:
+      - checked_at
+      - safety_team_notified
+      - status
+    SafetyCheckInStatusEnum:
+      enum:
+      - safe
+      - needs_help
+      type: string
+      description: |-
+        * `safe` - Safe
+        * `needs_help` - Needs help
+    SafetyReportCreate:
+      type: object
+      properties:
+        booking_id:
+          type: string
+          format: uuid
+        review_id:
+          type: string
+          format: uuid
+        reason:
+          $ref: '#/components/schemas/ReasonEnum'
+        description:
+          type: string
+          maxLength: 5000
+      required:
+      - description
+      - reason
+    SafetyReportOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        incident_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        review_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - id
+      - incident_id
+      - review_id
+      - status
     SandboxOutcome:
       type: object
       properties:
@@ -2395,6 +2817,125 @@ components:
           $ref: '#/components/schemas/OutcomeEnum'
       required:
       - outcome
+    StaffActionOutput:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+      - status
+    StaffReportAction:
+      type: object
+      properties:
+        action:
+          $ref: '#/components/schemas/StaffReportActionActionEnum'
+        resolution_notes:
+          type: string
+          maxLength: 1000
+      required:
+      - action
+    StaffReportActionActionEnum:
+      enum:
+      - review
+      - resolve
+      - dismiss
+      - suspend
+      type: string
+      description: |-
+        * `review` - review
+        * `resolve` - resolve
+        * `dismiss` - dismiss
+        * `suspend` - suspend
+    StaffReportOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        reporter:
+          type: string
+        reported:
+          type: string
+        booking_id:
+          type: string
+          format: uuid
+          nullable: true
+        review_id:
+          type: string
+          format: uuid
+          nullable: true
+        experience_title:
+          type: string
+        reason:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        incident_status:
+          type: string
+      required:
+      - booking_id
+      - created_at
+      - description
+      - experience_title
+      - id
+      - incident_status
+      - reason
+      - reported
+      - reporter
+      - review_id
+      - status
+    StaffReviewAction:
+      type: object
+      properties:
+        action:
+          $ref: '#/components/schemas/Action55fEnum'
+      required:
+      - action
+    StaffReviewOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        booking_id:
+          type: string
+          format: uuid
+        experience_title:
+          type: string
+        reviewer:
+          type: string
+        host:
+          type: string
+        rating:
+          type: integer
+        comment:
+          type: string
+        private_safety_feedback:
+          type: string
+        status:
+          type: string
+        verified_booking:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - booking_id
+      - comment
+      - created_at
+      - experience_title
+      - host
+      - id
+      - private_safety_feedback
+      - rating
+      - reviewer
+      - status
+      - verified_booking
     UserMe:
       type: object
       properties:

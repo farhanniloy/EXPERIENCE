@@ -20,6 +20,7 @@ from .models import (
     Booking,
     Category,
     Conversation,
+    EventCollection,
     Experience,
     HostProfile,
     ModerationQueueItem,
@@ -28,6 +29,11 @@ from .models import (
     PaymentWebhookEvent,
     Payout,
     Refund,
+    Review,
+    SafetyCheckIn,
+    SafetyIncident,
+    SafetyReport,
+    AuditLog,
     TransactionalOutbox,
     User,
     VerificationCheck,
@@ -383,6 +389,263 @@ class PlatformAPITests(APITestCase):
         )
         host.refresh_from_db()
         self.assertEqual(host.status, HostProfile.Status.APPROVED)
+        self.assertTrue(
+            AuditLog.objects.filter(
+                actor=staff_user,
+                action="moderation_approve",
+                entity_id=str(item.pk),
+            ).exists()
+        )
+
+    def test_safety_checkin_creates_actionable_incident_and_reports_are_member_scoped(self):
+        booking = self._create_booking()
+        booking.status = Booking.Status.CONFIRMED
+        booking.save(update_fields=["status"])
+        self.client.force_authenticate(self.customer.auth_user)
+
+        safe = self.client.post(
+            f"/api/v1/bookings/{booking.pk}/check-in",
+            {"status": SafetyCheckIn.Status.SAFE},
+            format="json",
+        )
+        self.assertEqual(safe.status_code, 200, safe.data)
+        self.assertFalse(safe.data["safety_team_notified"])
+
+        needs_help = self.client.post(
+            f"/api/v1/bookings/{booking.pk}/check-in",
+            {"status": SafetyCheckIn.Status.NEEDS_HELP},
+            format="json",
+        )
+        self.assertEqual(needs_help.status_code, 200, needs_help.data)
+        self.assertTrue(needs_help.data["safety_team_notified"])
+        self.assertEqual(SafetyCheckIn.objects.filter(booking=booking).count(), 1)
+        self.assertEqual(SafetyReport.objects.filter(booking=booking).count(), 1)
+        self.assertEqual(SafetyIncident.objects.filter(booking=booking).count(), 1)
+
+        repeated = self.client.post(
+            f"/api/v1/bookings/{booking.pk}/check-in",
+            {"status": SafetyCheckIn.Status.NEEDS_HELP},
+            format="json",
+        )
+        self.assertFalse(repeated.data["safety_team_notified"])
+        self.assertEqual(SafetyReport.objects.filter(booking=booking).count(), 1)
+
+        report = self.client.post(
+            "/api/v1/reports",
+            {
+                "booking_id": str(booking.pk),
+                "reason": "harassment",
+                "description": "The other participant made me feel unsafe.",
+            },
+            format="json",
+        )
+        self.assertEqual(report.status_code, 201, report.data)
+        outsider = User.objects.create_user(
+            "outsider@example.test", "Along-Outsider-Password-391!"
+        )
+        self.client.force_authenticate(outsider.auth_user)
+        forbidden = self.client.post(
+            f"/api/v1/bookings/{booking.pk}/check-in",
+            {"status": SafetyCheckIn.Status.SAFE},
+            format="json",
+        )
+        self.assertEqual(forbidden.status_code, 403)
+        staff_user = get_user_model().objects.create_user(
+            username="safety-moderator",
+            email="safety-moderator@example.test",
+            password="Along-Safety-Moderator-391!",
+            is_staff=True,
+        )
+        self.client.force_authenticate(staff_user)
+        moderated = self.client.post(
+            f"/api/v1/admin/reports/{report.data['id']}",
+            {"action": "review", "resolution_notes": "Assigned for staff follow-up."},
+            format="json",
+        )
+        self.assertEqual(moderated.status_code, 200, moderated.data)
+        self.assertEqual(
+            SafetyReport.objects.get(pk=report.data["id"]).status,
+            SafetyReport.Status.REVIEWING,
+        )
+        self.assertTrue(
+            AuditLog.objects.filter(
+                actor=staff_user, action="safety_report_review", entity_id=report.data["id"]
+            ).exists()
+        )
+        staff_suspend = self.client.post(
+            f"/api/v1/admin/reports/{report.data['id']}",
+            {"action": "suspend"},
+            format="json",
+        )
+        self.assertEqual(staff_suspend.status_code, 403)
+        superuser = get_user_model().objects.create_superuser(
+            username="report-safety-superuser",
+            email="report-safety-superuser@example.test",
+            password="Along-Report-Superuser-391!",
+        )
+        self.client.force_authenticate(superuser)
+        suspended_report = self.client.post(
+            f"/api/v1/admin/reports/{report.data['id']}",
+            {"action": "suspend", "resolution_notes": "Suspended pending investigation."},
+            format="json",
+        )
+        self.assertEqual(suspended_report.status_code, 200, suspended_report.data)
+        self.host_user.auth_user.refresh_from_db()
+        self.assertFalse(self.host_user.auth_user.is_active)
+
+    def test_reviews_require_completed_booking_and_are_verified_and_moderated(self):
+        booking = self._create_booking()
+        self.client.force_authenticate(self.customer.auth_user)
+        payload = {
+            "rating": 5,
+            "comment": "A thoughtful public museum visit.",
+            "private_safety_feedback": "Private detail for moderators only.",
+        }
+        premature = self.client.post(
+            f"/api/v1/bookings/{booking.pk}/review", payload, format="json"
+        )
+        self.assertEqual(premature.status_code, 400)
+
+        booking.status = Booking.Status.COMPLETED
+        booking.save(update_fields=["status"])
+        created = self.client.post(
+            f"/api/v1/bookings/{booking.pk}/review", payload, format="json"
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertTrue(created.data["verified_booking"])
+        self.assertEqual(created.data["status"], Review.Status.PENDING)
+        duplicate = self.client.post(
+            f"/api/v1/bookings/{booking.pk}/review", payload, format="json"
+        )
+        self.assertEqual(duplicate.status_code, 400)
+
+        public_path = f"/api/v1/companions/{self.host.slug}/reviews"
+        self.assertEqual(self.client.get(public_path).data, [])
+        staff_user = get_user_model().objects.create_user(
+            username="review-moderator",
+            email="review-moderator@example.test",
+            password="Along-Review-Moderator-391!",
+            is_staff=True,
+        )
+        self.client.force_authenticate(staff_user)
+        moderated = self.client.post(
+            f"/api/v1/admin/reviews/{created.data['id']}",
+            {"action": "approve"},
+            format="json",
+        )
+        self.assertEqual(moderated.status_code, 200, moderated.data)
+        public_reviews = self.client.get(public_path)
+        self.assertEqual(public_reviews.status_code, 200)
+        self.assertTrue(public_reviews.data[0]["verified_booking"])
+        self.assertNotIn("private_safety_feedback", public_reviews.data[0])
+        self.assertTrue(
+            AuditLog.objects.filter(
+                actor=staff_user, action="review_approved", entity_id=created.data["id"]
+            ).exists()
+        )
+        self.client.force_authenticate(self.host_user.auth_user)
+        review_report = self.client.post(
+            "/api/v1/reports",
+            {
+                "review_id": created.data["id"],
+                "reason": "review_content",
+                "description": "Please review this feedback for a policy violation.",
+            },
+            format="json",
+        )
+        self.assertEqual(review_report.status_code, 201, review_report.data)
+        self.assertEqual(
+            str(SafetyReport.objects.get(pk=review_report.data["id"]).review_id),
+            str(created.data["id"]),
+        )
+
+    def test_staff_console_permissions_suspension_and_verification_privacy(self):
+        VerificationCheck.objects.create(
+            user=self.customer.auth_user,
+            provider="private-test-provider",
+            provider_reference="private-reference-marker",
+            check_type=VerificationCheck.CheckType.IDENTITY,
+            status=VerificationCheck.Status.APPROVED,
+            metadata={"private_document_marker": "must-not-be-returned"},
+        )
+        self.client.force_authenticate(self.customer.auth_user)
+        self.assertEqual(self.client.get("/api/v1/admin/dashboard").status_code, 403)
+        self.assertEqual(self.client.get("/api/v1/users/me").status_code, 200)
+        customer_json = str(self.client.get("/api/v1/users/me").data)
+        self.assertNotIn("private-reference-marker", customer_json)
+        self.assertNotIn("private_document_marker", customer_json)
+        private_booking = self._create_booking()
+        private_booking.meeting_location_private = "private-residential-address-marker"
+        private_booking.save(update_fields=["meeting_location_private"])
+        booking_response = self.client.get(f"/api/v1/bookings/{private_booking.pk}")
+        self.assertEqual(booking_response.status_code, 200)
+        self.assertNotIn("private-residential-address-marker", str(booking_response.data))
+        public_profile = self.client.get(f"/api/v1/companions/{self.host.slug}")
+        self.assertEqual(public_profile.status_code, 200)
+        self.assertNotIn("private-reference-marker", str(public_profile.data))
+        payment = PaymentTransaction.objects.create(
+            booking=private_booking,
+            provider="sandbox",
+            transaction_type=PaymentTransaction.TransactionType.AUTHORIZATION,
+            amount_minor=private_booking.total_minor,
+            currency=private_booking.currency,
+            idempotency_key="admin-dashboard-payment",
+        )
+
+        staff_user = get_user_model().objects.create_user(
+            username="staff-safety",
+            email="staff-safety@example.test",
+            password="Along-Staff-Safety-391!",
+            is_staff=True,
+        )
+        self.client.force_authenticate(staff_user)
+        dashboard = self.client.get("/api/v1/admin/dashboard")
+        self.assertEqual(dashboard.status_code, 200, dashboard.data)
+        self.assertIn(str(private_booking.pk), {item["id"] for item in dashboard.data["bookings"]})
+        self.assertIn(str(payment.pk), {item["id"] for item in dashboard.data["payments"]})
+        self.assertNotIn("private-residential-address-marker", str(dashboard.data))
+        denied = self.client.post(
+            f"/api/v1/admin/accounts/{self.customer.pk}/suspension",
+            {"status": User.Status.SUSPENDED},
+            format="json",
+        )
+        self.assertEqual(denied.status_code, 403)
+
+        superuser = get_user_model().objects.create_superuser(
+            username="safety-superuser",
+            email="safety-superuser@example.test",
+            password="Along-Safety-Superuser-391!",
+        )
+        self.client.force_authenticate(superuser)
+        suspended = self.client.post(
+            f"/api/v1/admin/accounts/{self.customer.pk}/suspension",
+            {"status": User.Status.SUSPENDED},
+            format="json",
+        )
+        self.assertEqual(suspended.status_code, 200, suspended.data)
+        self.customer.refresh_from_db()
+        self.customer.auth_user.refresh_from_db()
+        self.assertEqual(self.customer.status, User.Status.SUSPENDED)
+        self.assertFalse(self.customer.auth_user.is_active)
+        self.assertTrue(
+            AuditLog.objects.filter(
+                actor=superuser, action="account_suspended", entity_id=str(self.customer.pk)
+            ).exists()
+        )
+
+    def test_expired_event_collections_are_deactivated_on_public_access(self):
+        expired = EventCollection.objects.create(
+            title="Expired collection",
+            slug="expired-stage-seven",
+            status=EventCollection.Status.ACTIVE,
+            starts_at=timezone.now() - timedelta(days=2),
+            ends_at=timezone.now() - timedelta(days=1),
+        )
+        response = self.client.get("/api/v1/collections")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(expired.slug, {item["slug"] for item in response.data["results"]})
+        expired.refresh_from_db()
+        self.assertEqual(expired.status, EventCollection.Status.INACTIVE)
 
     def test_flagged_listing_is_held_in_moderation_queue(self):
         self.client.force_authenticate(self.host_user.auth_user)
@@ -863,6 +1126,19 @@ class PlatformAPITests(APITestCase):
             format="json",
         )
         self.assertEqual(prevented.status_code, 400)
+        start = timezone.now() + timedelta(days=4)
+        with self.assertRaisesMessage(ValidationError, "This host is unavailable for booking."):
+            create_booking(
+                customer=self.customer.auth_user,
+                host=self.host,
+                experience=self.experience,
+                start_at=start,
+                end_at=start + timedelta(hours=2),
+                idempotency_key="blocked-user-booking",
+                timezone_name="Asia/Dhaka",
+                booking_mode="request",
+                public_venue_name="Dhaka public cinema",
+            )
 
     def test_flagged_messages_are_hidden_and_sent_to_moderation(self):
         booking = self._create_booking()

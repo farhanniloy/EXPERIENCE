@@ -36,6 +36,7 @@ from .serializers import (
     RegisterSerializer,
     UserMeSerializer,
 )
+from .services import expire_event_collections
 
 
 def get_or_create_account(auth_user):
@@ -381,6 +382,7 @@ class CollectionListView(generics.ListAPIView):
     pagination_class = CatalogCursorPagination
 
     def get_queryset(self):
+        expire_event_collections()
         now = timezone.now()
         return EventCollection.objects.filter(status=EventCollection.Status.ACTIVE).filter(
             Q(starts_at__isnull=True) | Q(starts_at__lte=now),
@@ -394,6 +396,7 @@ class CollectionDetailView(generics.RetrieveAPIView):
     lookup_field = "slug"
 
     def get_queryset(self):
+        expire_event_collections()
         now = timezone.now()
         return EventCollection.objects.filter(status=EventCollection.Status.ACTIVE).filter(
             Q(starts_at__isnull=True) | Q(starts_at__lte=now),

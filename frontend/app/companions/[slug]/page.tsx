@@ -9,10 +9,21 @@ import { Nav } from "@/components/layout/nav";
 import { Card } from "@/components/ui/card";
 import { FallbackImage } from "@/components/ui/fallback-image";
 import { fetchPublicMarketplaceData, PublicMarketplaceData } from "@/lib/public-data";
+import { apiRequest, jsonBody } from "@/lib/api-client";
+import { workflowCopy } from "@/lib/workflow-copy";
+
+type PublicReview = {
+  id: string;
+  reviewer_name: string;
+  rating: number;
+  comment: string;
+  created_at: string;
+  verified_booking: boolean;
+};
 
 export default function CompanionDetailPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#F7F5F0] px-4 py-20 text-center text-[#20201F]">Loading host profile…</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-[#F7F5F0] px-4 py-20 text-center text-[#20201F]">{workflowCopy.hostProfileLoading}</div>}>
       <CompanionDetailContent />
     </Suspense>
   );
@@ -22,6 +33,30 @@ function CompanionDetailContent() {
   const params = useParams<{ slug: string }>();
   const [data, setData] = useState<PublicMarketplaceData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileError, setProfileError] = useState("");
+  const [reviews, setReviews] = useState<PublicReview[] | null>(null);
+  const [reviewError, setReviewError] = useState("");
+  const [reportingReviewId, setReportingReviewId] = useState("");
+  const [reportedReviewIds, setReportedReviewIds] = useState<string[]>([]);
+  const [reviewReportError, setReviewReportError] = useState("");
+
+  async function reportReview(reviewId: string, formData: FormData) {
+    setReviewReportError("");
+    try {
+      await apiRequest("reports", {
+        method: "POST",
+        body: jsonBody({
+          review_id: reviewId,
+          reason: "review_content",
+          description: formData.get("description"),
+        }),
+      });
+      setReportedReviewIds((current) => [...current, reviewId]);
+      setReportingReviewId("");
+    } catch (reason) {
+      setReviewReportError(reason instanceof Error ? reason.message : workflowCopy.reviewReportError);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -34,20 +69,28 @@ function CompanionDetailContent() {
       })
       .catch(() => {
         if (!active) return;
+        setProfileError(workflowCopy.reviewProfileError);
         setLoading(false);
+      });
+    apiRequest<PublicReview[]>(`companions/${encodeURIComponent(params.slug)}/reviews`)
+      .then((payload) => {
+        if (active) setReviews(payload);
+      })
+      .catch((reason: unknown) => {
+        if (active) setReviewError(reason instanceof Error ? reason.message : workflowCopy.reviewLoadError);
       });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [params.slug]);
 
   if (loading) {
-    return <div className="min-h-screen bg-[#F7F5F0] px-4 py-20 text-center text-[#20201F]">Loading host profile…</div>;
+    return <div className="min-h-screen bg-[#F7F5F0] px-4 py-20 text-center text-[#20201F]">{workflowCopy.hostProfileLoading}</div>;
   }
 
   if (!data) {
-    return <div className="min-h-screen bg-[#F7F5F0] px-4 py-20 text-center text-red-700">Unable to load host profile.</div>;
+    return <div role="alert" className="min-h-screen bg-[#F7F5F0] px-4 py-20 text-center text-red-700">{profileError || workflowCopy.reviewProfileError}</div>;
   }
 
   const companion = data.companions.find((item) => item.slug === params.slug) ?? null;
@@ -56,7 +99,7 @@ function CompanionDetailContent() {
     return (
       <>
         <Nav />
-        <main className="min-h-screen bg-[#F7F5F0] px-4 py-20 text-center text-[#20201F] sm:px-6 lg:px-8">Host not found.</main>
+        <main className="min-h-screen bg-[#F7F5F0] px-4 py-20 text-center text-[#20201F] sm:px-6 lg:px-8">{workflowCopy.hostProfileNotFound}</main>
         <Footer />
       </>
     );
@@ -125,6 +168,42 @@ function CompanionDetailContent() {
                   </div>
                 </Card>
               </Link>
+            ))}
+          </div>
+        </section>
+        <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6 lg:px-8">
+          <h2 className="text-2xl font-semibold tracking-tight">{workflowCopy.reviewSectionTitle}</h2>
+          {reviewError ? <p role="alert" className="mt-4 text-sm text-red-700">{reviewError}</p> : null}
+          {!reviews && !reviewError ? <p className="mt-4 text-sm text-[#77736D]">{workflowCopy.reviewLoading}</p> : null}
+          {reviews?.length === 0 ? <p className="mt-4 text-sm text-[#77736D]">{workflowCopy.reviewEmpty}</p> : null}
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {reviews?.map((review) => (
+              <Card key={review.id} className="p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-medium">{review.reviewer_name}</p>
+                  {review.verified_booking ? <span className="rounded-full border border-[#E8E4DC] px-2.5 py-1 text-xs text-[#526044]">{workflowCopy.reviewVerifiedBadge}</span> : null}
+                </div>
+                <p className="mt-2 text-sm text-[#77736D]">★ {review.rating}/5 · {new Date(review.created_at).toLocaleDateString()}</p>
+                {review.comment ? <p className="mt-3 whitespace-pre-wrap text-sm leading-6">{review.comment}</p> : null}
+                {reportedReviewIds.includes(review.id) ? <p role="status" className="mt-3 text-sm text-[#526044]">{workflowCopy.reviewReportSent}</p> : (
+                  <div className="mt-4">
+                    {reportingReviewId === review.id ? (
+                      <form action={(formData) => void reportReview(review.id, formData)} className="space-y-3">
+                        <label className="block text-sm">{workflowCopy.reviewReportDetails}
+                          <textarea name="description" required maxLength={5000} className="mt-2 min-h-20 w-full rounded-lg border border-[#E8E4DC] p-3" />
+                        </label>
+                        {reviewReportError ? <p role="alert" className="text-sm text-red-700">{reviewReportError}</p> : null}
+                        <div className="flex gap-2">
+                          <button className="rounded-full bg-[#75404A] px-4 py-2 text-sm text-white">{workflowCopy.safetyReportSubmit}</button>
+                          <button type="button" onClick={() => setReportingReviewId("")} className="rounded-full border border-[#E8E4DC] px-4 py-2 text-sm">{workflowCopy.safetyReportCancel}</button>
+                        </div>
+                      </form>
+                    ) : (
+                      <button type="button" onClick={() => setReportingReviewId(review.id)} className="text-sm text-[#75404A] underline">{workflowCopy.reviewReportAction}</button>
+                    )}
+                  </div>
+                )}
+              </Card>
             ))}
           </div>
         </section>

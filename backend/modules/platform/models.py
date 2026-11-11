@@ -488,6 +488,23 @@ class Review(UUIDModel, TimestampedModel):
         indexes = [models.Index(fields=["host", "status", "created_at"])]
 
 
+class SafetyCheckIn(UUIDModel, TimestampedModel):
+    class Status(models.TextChoices):
+        SAFE = "safe", "Safe"
+        NEEDS_HELP = "needs_help", "Needs help"
+
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="safety_checkins")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="safety_checkins")
+    status = models.CharField(max_length=12, choices=Status.choices)
+    note = models.CharField(max_length=500, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["booking", "user"], name="safety_checkin_booking_user_unique"),
+        ]
+        indexes = [models.Index(fields=["booking", "created_at"])]
+
+
 class SafetyReport(UUIDModel, TimestampedModel):
     class Status(models.TextChoices):
         OPEN = "open", "Open"
@@ -498,10 +515,24 @@ class SafetyReport(UUIDModel, TimestampedModel):
     reporter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="reports_filed")
     reported = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="reports_received")
     booking = models.ForeignKey(Booking, on_delete=models.PROTECT, null=True, blank=True, related_name="reports")
+    review = models.ForeignKey(Review, on_delete=models.PROTECT, null=True, blank=True, related_name="reports")
     reason = models.CharField(max_length=80)
     description = models.TextField(max_length=5000)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.OPEN, db_index=True)
     assigned_admin = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="assigned_reports")
+
+
+class SafetyIncident(UUIDModel, TimestampedModel):
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        REVIEWING = "reviewing", "Reviewing"
+        RESOLVED = "resolved", "Resolved"
+        DISMISSED = "dismissed", "Dismissed"
+
+    report = models.OneToOneField(SafetyReport, on_delete=models.PROTECT, related_name="incident")
+    booking = models.ForeignKey(Booking, on_delete=models.PROTECT, related_name="safety_incidents")
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.OPEN, db_index=True)
+    resolution_notes = models.CharField(max_length=1000, blank=True)
 
 
 class Block(UUIDModel, TimestampedModel):

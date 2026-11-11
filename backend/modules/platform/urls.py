@@ -53,6 +53,20 @@ from .payment_views import (
     RefundCreateView,
     SandboxPaymentCompleteView,
 )
+from .safety_views import (
+    BookingReviewView,
+    HostReviewListView,
+    SafetyCheckInView,
+    SafetyReportCreateView,
+)
+from .admin_views import (
+    StaffAccountSuspensionView,
+    StaffDashboardView,
+    StaffReportActionView,
+    StaffReportListView,
+    StaffReviewActionView,
+    StaffReviewListView,
+)
 
 urlpatterns = [
     path("auth/csrf", CsrfTokenView.as_view(), name="auth-csrf"),
@@ -96,6 +110,8 @@ urlpatterns = [
     path("bookings/<uuid:booking_id>", BookingDetailView.as_view(), name="booking-detail"),
     path("bookings/<uuid:booking_id>/events", BookingEventListView.as_view(), name="booking-events"),
     path("bookings/<uuid:booking_id>/payment", BookingPaymentCreateView.as_view(), name="booking-payment"),
+    path("bookings/<uuid:booking_id>/check-in", SafetyCheckInView.as_view(), name="safety-check-in"),
+    path("bookings/<uuid:booking_id>/review", BookingReviewView.as_view(), name="booking-review"),
     path("bookings/<uuid:booking_id>/<str:action>", BookingActionView.as_view(), name="booking-action"),
     path("payments/refunds", RefundCreateView.as_view(), name="payment-refunds"),
     path("payments/<uuid:payment_id>", PaymentDetailView.as_view(), name="payment-detail"),
@@ -117,6 +133,8 @@ urlpatterns = [
         name="conversation-read",
     ),
     path("users/<uuid:user_id>/block", BlockUserView.as_view(), name="user-block"),
+    path("reports", SafetyReportCreateView.as_view(), name="safety-report-create"),
+    path("companions/<slug:host_slug>/reviews", HostReviewListView.as_view(), name="host-reviews"),
     path("experiences/manage", ManagedExperienceListView.as_view(), name="experience-manage-list"),
     path(
         "experiences/manage/<uuid:experience_id>",
@@ -127,6 +145,12 @@ urlpatterns = [
     path("dashboard/companion", HostDashboardView.as_view(), name="host-dashboard"),
     path("admin/moderation", ModerationQueueView.as_view(), name="moderation-queue"),
     path("admin/moderation/<uuid:item_id>", ModerationReviewView.as_view(), name="moderation-review"),
+    path("admin/dashboard", StaffDashboardView.as_view(), name="staff-dashboard"),
+    path("admin/reports", StaffReportListView.as_view(), name="staff-reports"),
+    path("admin/reports/<uuid:report_id>", StaffReportActionView.as_view(), name="staff-report-action"),
+    path("admin/reviews", StaffReviewListView.as_view(), name="staff-reviews"),
+    path("admin/reviews/<uuid:review_id>", StaffReviewActionView.as_view(), name="staff-review-action"),
+    path("admin/accounts/<uuid:account_id>/suspension", StaffAccountSuspensionView.as_view(), name="staff-account-suspension"),
     path("categories", CategoryListView.as_view(), name="category-list"),
     path("experiences", ExperienceListView.as_view(), name="experience-list"),
     path("experiences/<slug:slug>", ExperienceDetailView.as_view(), name="experience-detail"),

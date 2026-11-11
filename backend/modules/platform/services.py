@@ -17,11 +17,13 @@ from .models import (
     Block,
     Conversation,
     Experience,
+    EventCollection,
     HostProfile,
     ModerationQueueItem,
     User,
     VerificationCheck,
 )
+from .audit import record_admin_action
 from .availability import is_slot_available
 from .moderation import flag_experience, queue_listing_review
 from .notifications import enqueue_email
@@ -128,7 +130,21 @@ def apply_moderation_decision(item, action, reviewer):
     item.reviewed_by = reviewer
     item.reviewed_at = timezone.now()
     item.save(update_fields=["status", "reviewed_by", "reviewed_at", "updated_at"])
+    record_admin_action(
+        reviewer,
+        f"moderation_{action}",
+        item,
+        {"queue_type": item.queue_type, "experience_id": str(item.experience_id) if item.experience_id else None},
+    )
     return item
+
+
+def expire_event_collections():
+    now = timezone.now()
+    return EventCollection.objects.filter(
+        status=EventCollection.Status.ACTIVE,
+        ends_at__lte=now,
+    ).update(status=EventCollection.Status.INACTIVE, updated_at=now)
 
 
 @transaction.atomic
